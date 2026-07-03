@@ -1,0 +1,24 @@
+/* 角色管理页面样式 */
+.role-manage-page {
+  padding: 24px;
+}
+
+.priority-tag-low {
+  background: #f5f5f5;
+  color: #666;
+}
+
+.priority-tag-medium {
+  background: #e6f4ff;
+  color: #3d7fff;
+}
+
+.priority-tag-high {
+  background: #fff7e6;
+  color: #ff9e3d;
+}
+
+.priority-tag-urgent {
+  background: #fff1f0;
+  color: #ff3d3d;
+}

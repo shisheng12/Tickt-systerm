@@ -1,0 +1,44 @@
+[
+  {
+    "id": "C001",
+    "name": "暖哇客户群",
+    "type": "external",
+    "feishuChatId": "mock_chat_001",
+    "exportFormat": "xlsx"
+  },
+  {
+    "id": "C002",
+    "name": "VIP客户群A",
+    "type": "external",
+    "feishuChatId": "mock_chat_002",
+    "exportFormat": "xlsx"
+  },
+  {
+    "id": "C003",
+    "name": "保司对接群",
+    "type": "internal",
+    "feishuChatId": "mock_chat_003",
+    "exportFormat": "csv"
+  },
+  {
+    "id": "C004",
+    "name": "支付渠道协调群",
+    "type": "internal",
+    "feishuChatId": "mock_chat_004",
+    "exportFormat": "xlsx"
+  },
+  {
+    "id": "C005",
+    "name": "客户反馈专线",
+    "type": "external",
+    "feishuChatId": "mock_chat_005",
+    "exportFormat": "pdf"
+  },
+  {
+    "id": "C006",
+    "name": "内部工单流转群",
+    "type": "internal",
+    "feishuChatId": "mock_chat_006",
+    "exportFormat": "csv"
+  }
+]

@@ -1,0 +1,262 @@
+[
+  {
+    "id": "S001",
+    "userId": "U1002",
+    "date": "2026-06-23",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "暖哇客户群",
+    "remark": ""
+  },
+  {
+    "id": "S002",
+    "userId": "U1004",
+    "date": "2026-06-23",
+    "shift": "mid",
+    "startTime": "12:00",
+    "endTime": "21:00",
+    "channel": "VIP客户群A",
+    "remark": ""
+  },
+  {
+    "id": "S003",
+    "userId": "U1005",
+    "date": "2026-06-24",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "支付渠道协调群",
+    "remark": ""
+  },
+  {
+    "id": "S004",
+    "userId": "U1006",
+    "date": "2026-06-24",
+    "shift": "night",
+    "startTime": "18:00",
+    "endTime": "03:00",
+    "channel": "客户反馈专线",
+    "remark": ""
+  },
+  {
+    "id": "S005",
+    "userId": "U1008",
+    "date": "2026-06-25",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "VIP客户群A",
+    "remark": ""
+  },
+  {
+    "id": "S006",
+    "userId": "U1002",
+    "date": "2026-06-25",
+    "shift": "mid",
+    "startTime": "12:00",
+    "endTime": "21:00",
+    "channel": "暖哇客户群",
+    "remark": ""
+  },
+  {
+    "id": "S007",
+    "userId": "U1010",
+    "date": "2026-06-26",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "VIP客户群A",
+    "remark": ""
+  },
+  {
+    "id": "S008",
+    "userId": "U1004",
+    "date": "2026-06-26",
+    "shift": "mid",
+    "startTime": "12:00",
+    "endTime": "21:00",
+    "channel": "保司对接群",
+    "remark": ""
+  },
+  {
+    "id": "S009",
+    "userId": "U1005",
+    "date": "2026-06-27",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "支付渠道协调群",
+    "remark": ""
+  },
+  {
+    "id": "S010",
+    "userId": "U1006",
+    "date": "2026-06-27",
+    "shift": "night",
+    "startTime": "18:00",
+    "endTime": "03:00",
+    "channel": "客户反馈专线",
+    "remark": ""
+  },
+  {
+    "id": "S011",
+    "userId": "U1002",
+    "date": "2026-06-28",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "暖哇客户群",
+    "remark": ""
+  },
+  {
+    "id": "S012",
+    "userId": "U1008",
+    "date": "2026-06-28",
+    "shift": "mid",
+    "startTime": "12:00",
+    "endTime": "21:00",
+    "channel": "VIP客户群A",
+    "remark": ""
+  },
+  {
+    "id": "S013",
+    "userId": "U1010",
+    "date": "2026-06-29",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "VIP客户群A",
+    "remark": ""
+  },
+  {
+    "id": "S014",
+    "userId": "U1004",
+    "date": "2026-06-29",
+    "shift": "mid",
+    "startTime": "12:00",
+    "endTime": "21:00",
+    "channel": "保司对接群",
+    "remark": ""
+  },
+  {
+    "id": "S015",
+    "userId": "U1005",
+    "date": "2026-06-30",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "支付渠道协调群",
+    "remark": ""
+  },
+  {
+    "id": "S016",
+    "userId": "U1006",
+    "date": "2026-06-30",
+    "shift": "night",
+    "startTime": "18:00",
+    "endTime": "03:00",
+    "channel": "客户反馈专线",
+    "remark": ""
+  },
+  {
+    "id": "S017",
+    "userId": "U1002",
+    "date": "2026-07-01",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "暖哇客户群",
+    "remark": ""
+  },
+  {
+    "id": "S018",
+    "userId": "U1008",
+    "date": "2026-07-01",
+    "shift": "mid",
+    "startTime": "12:00",
+    "endTime": "21:00",
+    "channel": "VIP客户群A",
+    "remark": ""
+  },
+  {
+    "id": "S019",
+    "userId": "U1010",
+    "date": "2026-07-02",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "VIP客户群A",
+    "remark": ""
+  },
+  {
+    "id": "S020",
+    "userId": "U1004",
+    "date": "2026-07-02",
+    "shift": "mid",
+    "startTime": "12:00",
+    "endTime": "21:00",
+    "channel": "保司对接群",
+    "remark": ""
+  },
+  {
+    "id": "S021",
+    "userId": "U1005",
+    "date": "2026-07-03",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "支付渠道协调群",
+    "remark": ""
+  },
+  {
+    "id": "S022",
+    "userId": "U1006",
+    "date": "2026-07-03",
+    "shift": "night",
+    "startTime": "18:00",
+    "endTime": "03:00",
+    "channel": "客户反馈专线",
+    "remark": ""
+  },
+  {
+    "id": "S023",
+    "userId": "U1002",
+    "date": "2026-07-04",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "暖哇客户群",
+    "remark": ""
+  },
+  {
+    "id": "S024",
+    "userId": "U1008",
+    "date": "2026-07-04",
+    "shift": "mid",
+    "startTime": "12:00",
+    "endTime": "21:00",
+    "channel": "VIP客户群A",
+    "remark": ""
+  },
+  {
+    "id": "S025",
+    "userId": "U1010",
+    "date": "2026-07-05",
+    "shift": "day",
+    "startTime": "09:00",
+    "endTime": "18:00",
+    "channel": "VIP客户群A",
+    "remark": ""
+  },
+  {
+    "id": "S026",
+    "userId": "U1004",
+    "date": "2026-07-05",
+    "shift": "mid",
+    "startTime": "12:00",
+    "endTime": "21:00",
+    "channel": "保司对接群",
+    "remark": ""
+  }
+]

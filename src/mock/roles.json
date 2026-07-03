@@ -1,0 +1,50 @@
+[
+  {
+    "id": "R_ADMIN",
+    "name": "管理员",
+    "permissions": [
+      "dashboard.view",
+      "ticket.view",
+      "ticket.create",
+      "ticket.edit",
+      "ticket.process",
+      "ticket.assign",
+      "ticket.export",
+      "perm.manage",
+      "schedule.manage"
+    ]
+  },
+  {
+    "id": "R_LEAD",
+    "name": "客服主管",
+    "permissions": [
+      "dashboard.view",
+      "ticket.view",
+      "ticket.create",
+      "ticket.edit",
+      "ticket.process",
+      "ticket.assign",
+      "ticket.export",
+      "schedule.manage"
+    ]
+  },
+  {
+    "id": "R_AGENT",
+    "name": "一线客服",
+    "permissions": [
+      "dashboard.view",
+      "ticket.view",
+      "ticket.create",
+      "ticket.edit",
+      "ticket.process"
+    ]
+  },
+  {
+    "id": "R_VIEWER",
+    "name": "只读观察",
+    "permissions": [
+      "dashboard.view",
+      "ticket.view"
+    ]
+  }
+]

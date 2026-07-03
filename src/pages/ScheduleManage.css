@@ -1,0 +1,199 @@
+/* 排班配置页面样式 - 遵循设计规范 */
+
+.schedule-manage-page h2 {
+  color: #111;
+  font-weight: 600;
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+
+/* 工具栏 */
+.schedule-toolbar {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.toolbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.week-label {
+  margin-left: 12px;
+  font-weight: 600;
+  color: #3d7fff;
+  font-size: 15px;
+}
+
+/* 周视图网格 */
+.schedule-grid-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+}
+
+.schedule-grid {
+  display: grid;
+  grid-template-columns: 110px repeat(7, 1fr);
+  gap: 1px;
+  background: #eee;
+  border: 1px solid #eee;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+/* 左上角 */
+.grid-corner {
+  background: #fafafa;
+  padding: 12px 8px;
+  font-weight: 600;
+  color: #666;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+/* 星期表头 */
+.grid-day-header {
+  background: #fafafa;
+  padding: 10px 8px;
+  text-align: center;
+}
+
+.grid-day-header.today {
+  background: #e6f4ff;
+}
+
+.grid-day-header.today .day-date {
+  color: #3d7fff;
+  font-weight: 700;
+}
+
+.day-week {
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.day-date {
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
+/* 班次表头 */
+.grid-shift-header {
+  padding: 12px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.shift-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.shift-time {
+  font-size: 11px;
+  margin-top: 2px;
+  opacity: 0.8;
+}
+
+/* 单元格 */
+.grid-cell {
+  background: #fff;
+  min-height: 80px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: background 0.2s;
+}
+
+.grid-cell:hover {
+  background: #f7f9fc;
+}
+
+/* 排班卡片 */
+.schedule-chip {
+  background: #fafafa;
+  border-left: 3px solid #3d7fff;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.schedule-chip:hover {
+  background: #f0f5ff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+}
+
+.chip-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.chip-name {
+  font-weight: 600;
+  color: #333;
+  display: flex;
+  align-items: center;
+}
+
+.chip-actions {
+  display: none;
+  gap: 8px;
+}
+
+.schedule-chip:hover .chip-actions {
+  display: flex;
+}
+
+.chip-actions .anticon {
+  color: #999;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.chip-actions .anticon:hover {
+  color: #3d7fff;
+}
+
+.chip-actions .anticon:last-child:hover {
+  color: #ff3d3d;
+}
+
+.chip-channel {
+  color: #666;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+/* 空单元格 */
+.grid-cell-empty {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #d9d9d9;
+  cursor: pointer;
+  border: 1px dashed transparent;
+  border-radius: 4px;
+  transition: all 0.2s;
+  min-height: 40px;
+}
+
+.grid-cell-empty:hover {
+  color: #3d7fff;
+  border-color: #91caff;
+  background: #f0f5ff;
+}

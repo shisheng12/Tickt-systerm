@@ -1,0 +1,153 @@
+/* 工单详情抽屉样式 - 基于设计规范 */
+
+.drawer-ticket-no {
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-weight: 600;
+  color: #3d7fff;
+  font-size: 16px;
+}
+
+/* 处理操作面板 */
+.action-panel {
+  background: #f5f8ff;
+  border: 1px solid #d6e4ff;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-bottom: 8px;
+}
+
+.action-panel-title {
+  font-weight: 600;
+  color: #111;
+  font-size: 14px;
+  margin-bottom: 16px;
+}
+
+.action-panel-title .anticon {
+  color: #3d7fff;
+  margin-right: 6px;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+  min-height: 32px;
+}
+
+.action-row:last-child {
+  margin-bottom: 0;
+}
+
+.action-label {
+  width: 80px;
+  color: #666;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+/* 附件列表 */
+.attachment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.attachment-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: #fafafa;
+  border: 1px solid #eee;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.attachment-item:hover {
+  background: #f5f8ff;
+  border-color: #d6e4ff;
+}
+
+.attachment-item .anticon {
+  color: #3d7fff;
+  font-size: 16px;
+}
+
+.attachment-name {
+  flex: 1;
+  color: #333;
+  font-size: 14px;
+}
+
+.attachment-mock {
+  font-size: 11px;
+  color: #999;
+  background: #f0f0f0;
+  padding: 1px 6px;
+  border-radius: 3px;
+  cursor: help;
+}
+
+/* 时间线 */
+.process-timeline {
+  margin-top: 8px;
+  padding: 8px 0;
+}
+
+.timeline-item {
+  padding-bottom: 4px;
+}
+
+.timeline-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.timeline-action {
+  font-weight: 600;
+  color: #111;
+  font-size: 14px;
+}
+
+.timeline-transition {
+  font-size: 12px;
+  color: #ff9e3d;
+  background: #fff7e6;
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+
+.timeline-remark {
+  color: #333;
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 4px;
+}
+
+.timeline-meta {
+  font-size: 12px;
+  color: #999;
+}
+
+.timeline-meta .anticon {
+  margin-right: 4px;
+}
+
+.timeline-time {
+  margin-left: 16px;
+}
+
+/* 抽屉内分割线标题 */
+.ticket-detail-drawer .ant-divider {
+  margin: 20px 0 12px;
+}
+
+.ticket-detail-drawer .ant-divider-inner-text {
+  font-weight: 600;
+  color: #111;
+  font-size: 14px;
+}

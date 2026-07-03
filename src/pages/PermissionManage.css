@@ -1,0 +1,77 @@
+/* 权限配置页面样式 - 遵循设计规范 */
+
+.permission-manage-page h2 {
+  color: #111;
+  font-weight: 600;
+  font-size: 24px;
+  margin-bottom: 20px;
+}
+
+/* 矩阵卡片 */
+.matrix-card,
+.members-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  border-radius: 8px;
+}
+
+.matrix-hint,
+.transfer-hint {
+  color: #666;
+  font-size: 13px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: #f5f8ff;
+  border-radius: 6px;
+  border-left: 3px solid #3d7fff;
+}
+
+/* 矩阵表格分组底色 */
+.matrix-row-group-数据总览 td:first-child {
+  border-left: 3px solid #52c41a;
+}
+
+.matrix-row-group-工单管理 td:first-child {
+  border-left: 3px solid #3d7fff;
+}
+
+.matrix-row-group-系统配置 td:first-child {
+  border-left: 3px solid #722ed1;
+}
+
+.permission-manage-page .ant-table-thead > tr > th {
+  background: #fafafa;
+  font-weight: 600;
+  color: #333;
+}
+
+.permission-manage-page .ant-checkbox-wrapper {
+  transform: scale(1.1);
+}
+
+/* 成员分配 */
+.role-selector {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.role-selector-label {
+  font-weight: 500;
+  color: #333;
+  margin-right: 4px;
+}
+
+.members-card .ant-transfer {
+  margin-top: 8px;
+}
+
+/* Tabs 样式 */
+.permission-manage-page .ant-tabs-tab {
+  font-size: 15px;
+}
+
+.permission-manage-page .ant-tabs-tab-active .ant-tabs-tab-btn {
+  color: #3d7fff;
+}

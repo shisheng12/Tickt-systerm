@@ -1,0 +1,92 @@
+[
+  {
+    "id": "U1001",
+    "username": "admin",
+    "name": "张三",
+    "roleId": "R_ADMIN",
+    "email": "zhangsan@example.com",
+    "active": true,
+    "team": "管理团队"
+  },
+  {
+    "id": "U1002",
+    "username": "agent",
+    "name": "李四",
+    "roleId": "R_AGENT",
+    "email": "lisi@example.com",
+    "active": true,
+    "team": "保司反馈客服组"
+  },
+  {
+    "id": "U1003",
+    "username": "leader",
+    "name": "王五",
+    "roleId": "R_LEAD",
+    "email": "wangwu@example.com",
+    "active": true,
+    "team": "保司反馈客服组"
+  },
+  {
+    "id": "U1004",
+    "username": "zhaoliu",
+    "name": "赵六",
+    "roleId": "R_AGENT",
+    "email": "zhaoliu@example.com",
+    "active": true,
+    "team": "保司反馈客服组"
+  },
+  {
+    "id": "U1005",
+    "username": "sunqi",
+    "name": "孙七",
+    "roleId": "R_AGENT",
+    "email": "sunqi@example.com",
+    "active": true,
+    "team": "支付渠道客服组"
+  },
+  {
+    "id": "U1006",
+    "username": "zhouba",
+    "name": "周八",
+    "roleId": "R_AGENT",
+    "email": "zhouba@example.com",
+    "active": true,
+    "team": "支付渠道客服组"
+  },
+  {
+    "id": "U1007",
+    "username": "wujiu",
+    "name": "吴九",
+    "roleId": "R_LEAD",
+    "email": "wujiu@example.com",
+    "active": true,
+    "team": "支付渠道客服组"
+  },
+  {
+    "id": "U1008",
+    "username": "zhengshi",
+    "name": "郑十",
+    "roleId": "R_AGENT",
+    "email": "zhengshi@example.com",
+    "active": true,
+    "team": "VIP客户服务组"
+  },
+  {
+    "id": "U1009",
+    "username": "viewer",
+    "name": "钱十一",
+    "roleId": "R_VIEWER",
+    "email": "qianshiyi@example.com",
+    "active": true,
+    "team": "质量监控组"
+  },
+  {
+    "id": "U1010",
+    "username": "chenshier",
+    "name": "陈十二",
+    "roleId": "R_AGENT",
+    "email": "chenshier@example.com",
+    "active": true,
+    "team": "VIP客户服务组"
+  }
+]

@@ -1,0 +1,969 @@
+import { useState, useEffect } from 'react';
+import {
+  Table,
+  Button,
+  Space,
+  Tag,
+  Input,
+  Select,
+  DatePicker,
+  Card,
+  message,
+  Modal,
+  Form,
+  Row,
+  Col,
+  Tooltip
+} from 'antd';
+import {
+  PlusOutlined,
+  SearchOutlined,
+  ReloadOutlined,
+  EditOutlined,
+  EyeOutlined,
+  DownloadOutlined,
+  ThunderboltOutlined
+} from '@ant-design/icons';
+import type { ColumnsType, TablePaginationConfig } from 'antd/es/table';
+import type { Ticket, TicketQueryParams, Priority, TicketStatus, TicketSource, ChannelType } from '../types';
+import { queryTickets, createTicket, updateTicket } from '../services/ticketService';
+import { getUsers } from '../services/roleService';
+import { getChannels } from '../services/channelService';
+import { usePermission, useAuth, useCanEditTicket, useCanProcessTicket } from '../hooks/usePermission';
+import {
+  TICKET_CATEGORIES,
+  TICKET_STATUS,
+  PRIORITY_CONFIG,
+  SOURCE_CONFIG
+} from '../constants/ticket';
+import { CHANNEL_TYPE_CONFIG, COMPLAINT_LEVEL_CONFIG } from '../constants/complaintRules';
+import dayjs from 'dayjs';
+import type { Dayjs } from 'dayjs';
+import { useSearchParams } from 'react-router-dom';
+import TicketDetailDrawer from '../components/TicketDetailDrawer';
+import FeishuFormModal from '../components/FeishuFormModal';
+import TicketForm from '../components/TicketForm';
+import { getTicketColumns } from './TicketListColumns';
+import { exportTicketsToExcel } from '../utils/exportUtil';
+import './TicketList.css';
+
+const { RangePicker } = DatePicker;
+const { TextArea } = Input;
+
+export default function TicketList() {
+  const authUser = useAuth();
+  const canCreate = usePermission('ticket.create');
+  const canEdit = usePermission('ticket.edit');
+  const [searchParams] = useSearchParams();
+
+  // 数据状态
+  const [tickets, setTickets] = useState<Ticket[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [total, setTotal] = useState(0);
+
+  // 查询参数
+  const [queryParams, setQueryParams] = useState<TicketQueryParams>({
+    page: 1,
+    pageSize: 10,
+    sortBy: 'createdAt',
+    sortOrder: 'desc'
+  });
+
+  // 筛选表单
+  const [keyword, setKeyword] = useState('');
+  const [statusFilter, setStatusFilter] = useState<TicketStatus | undefined>();
+  const [priorityFilter, setPriorityFilter] = useState<Priority | undefined>();
+  const [channelFilter, setChannelFilter] = useState<string | undefined>();
+  const [assigneeFilter, setAssigneeFilter] = useState<string | undefined>();
+  const [sourceFilter, setSourceFilter] = useState<TicketSource | undefined>();
+  const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
+
+  // 弹窗状态
+  const [createModalVisible, setCreateModalVisible] = useState(false);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [currentTicket, setCurrentTicket] = useState<Ticket | null>(null);
+
+  // 详情抽屉状态
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerTicketId, setDrawerTicketId] = useState<string | null>(null);
+
+  // 飞书进单弹窗
+  const [feishuOpen, setFeishuOpen] = useState(false);
+
+  // 表单
+  const [createForm] = Form.useForm();
+  const [editForm] = Form.useForm();
+
+  // 辅助数据
+  const [users, setUsers] = useState<any[]>([]);
+  const [channels, setChannels] = useState<any[]>([]);
+
+  // 加载辅助数据
+  useEffect(() => {
+    loadAuxData();
+  }, []);
+
+  // 从 URL 参数初始化筛选条件（Dashboard 卡片点击跳转）
+  useEffect(() => {
+    const statusFromUrl = searchParams.get('status') as TicketStatus | null;
+    if (statusFromUrl) {
+      setStatusFilter(statusFromUrl);
+      // 自动触发一次搜索
+      setTimeout(() => handleSearch(), 100);
+    }
+  }, [searchParams]);
+
+  // 加载工单列表
+  useEffect(() => {
+    loadTickets();
+  }, [queryParams]);
+
+  const loadAuxData = async () => {
+    try {
+      const [usersData, channelsData] = await Promise.all([
+        getUsers(),
+        getChannels()
+      ]);
+      setUsers(usersData);
+      setChannels(channelsData);
+    } catch (error: any) {
+      message.error('加载辅助数据失败');
+    }
+  };
+
+  const loadTickets = async () => {
+    setLoading(true);
+    try {
+      const result = await queryTickets(queryParams);
+      setTickets(result.data);
+      setTotal(result.total);
+    } catch (error: any) {
+      message.error(error.message || '加载工单失败');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 搜索
+  const handleSearch = () => {
+    setQueryParams({
+      ...queryParams,
+      keyword,
+      status: statusFilter,
+      priority: priorityFilter,
+      channel: channelFilter,
+      assigneeId: assigneeFilter,
+      source: sourceFilter,
+      startDate: dateRange?.[0]?.format('YYYY-MM-DD'),
+      endDate: dateRange?.[1]?.format('YYYY-MM-DD'),
+      page: 1
+    });
+  };
+
+  // 重置
+  const handleReset = () => {
+    setKeyword('');
+    setStatusFilter(undefined);
+    setPriorityFilter(undefined);
+    setChannelFilter(undefined);
+    setAssigneeFilter(undefined);
+    setSourceFilter(undefined);
+    setDateRange(null);
+    setQueryParams({
+      page: 1,
+      pageSize: 10,
+      sortBy: 'createdAt',
+      sortOrder: 'desc'
+    });
+  };
+
+  // 分页变化
+  const handleTableChange = (pagination: TablePaginationConfig, filters: any, sorter: any) => {
+    setQueryParams({
+      ...queryParams,
+      page: pagination.current || 1,
+      pageSize: pagination.pageSize || 10,
+      sortBy: sorter.field || 'createdAt',
+      sortOrder: sorter.order === 'ascend' ? 'asc' : 'desc'
+    });
+  };
+
+  // 新增工单
+  const handleCreate = () => {
+    setCreateModalVisible(true);
+    createForm.resetFields();
+  };
+
+  const handleCreateSubmit = async () => {
+    try {
+      const values = await createForm.validateFields();
+      await createTicket({
+        ...values,
+        dueAt: values.dueAt ? values.dueAt.toISOString() : null,
+        completionTime: values.completionTime ? values.completionTime.toISOString() : null
+      });
+      message.success('工单创建成功');
+      setCreateModalVisible(false);
+      loadTickets();
+    } catch (error: any) {
+      if (error.errorFields) return;
+      message.error(error.message || '创建失败');
+    }
+  };
+
+  // 编辑工单
+  const handleEdit = (ticket: Ticket) => {
+    setCurrentTicket(ticket);
+    setEditModalVisible(true);
+    editForm.setFieldsValue({
+      ...ticket,
+      dueAt: ticket.dueAt ? dayjs(ticket.dueAt) : null,
+      completionTime: ticket.completionTime ? dayjs(ticket.completionTime) : null
+    });
+  };
+
+  // 提交编辑
+  const handleEditSubmit = async () => {
+    if (!currentTicket) return;
+    try {
+      const values = await editForm.validateFields();
+      await updateTicket(currentTicket.id, {
+        ...values,
+        dueAt: values.dueAt ? values.dueAt.toISOString() : null,
+        completionTime: values.completionTime ? values.completionTime.toISOString() : null
+      });
+      message.success('工单更新成功');
+      setEditModalVisible(false);
+      setCurrentTicket(null);
+      loadTickets();
+    } catch (error: any) {
+      if (error.errorFields) return;
+      message.error(error.message || '更新失败');
+    }
+  };
+
+  // 查看详情（打开处理抽屉）
+  const handleView = (ticket: Ticket) => {
+    setDrawerTicketId(ticket.id);
+    setDrawerOpen(true);
+  };
+
+  // 关闭详情抽屉
+  const handleDrawerClose = () => {
+    setDrawerOpen(false);
+    setDrawerTicketId(null);
+  };
+
+  // 导出工单
+  const handleExport = () => {
+    if (tickets.length === 0) {
+      message.warning('暂无数据可导出');
+      return;
+    }
+    try {
+      exportTicketsToExcel(tickets, {
+        filename: `工单列表_${dayjs().format('YYYYMMDD_HHmmss')}.xlsx`
+      });
+      message.success(`成功导出 ${tickets.length} 条工单`);
+    } catch (error: any) {
+      message.error('导出失败：' + error.message);
+    }
+  };
+
+  // 表格列定义（完整字段，按需求文档顺序）
+  const columns: ColumnsType<Ticket> = [
+    {
+      title: '工单号',
+      dataIndex: 'workOrderNumber',
+      key: 'workOrderNumber',
+      width: 160,
+      fixed: 'left',
+      render: (text, record) => (
+        <span className="ticket-number" onClick={() => handleView(record)}>{text}</span>
+      )
+    },
+    {
+      title: '反馈时间',
+      dataIndex: 'feedbackTime',
+      key: 'feedbackTime',
+      width: 160,
+      sorter: true,
+      render: (text) => (text ? dayjs(text).format('YYYY-MM-DD HH:mm') : '-')
+    },
+    {
+      title: '项目',
+      dataIndex: 'project',
+      key: 'project',
+      width: 90
+    },
+    {
+      title: '经纪主体',
+      dataIndex: 'brokerageEntity',
+      key: 'brokerageEntity',
+      width: 130,
+      ellipsis: true
+    },
+    {
+      title: '支付渠道',
+      dataIndex: 'paymentChannel',
+      key: 'paymentChannel',
+      width: 110
+    },
+    {
+      title: '保单号',
+      dataIndex: 'policyNumber',
+      key: 'policyNumber',
+      width: 190,
+      ellipsis: {
+        showTitle: false
+      },
+      render: (text) => (
+        <Tooltip title={text}>
+          <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{text}</span>
+        </Tooltip>
+      )
+    },
+    {
+      title: '客户姓名',
+      dataIndex: 'customerName',
+      key: 'customerName',
+      width: 100
+    },
+    {
+      title: '电话',
+      dataIndex: 'phone',
+      key: 'phone',
+      width: 120,
+      render: (text) => <span style={{ fontFamily: 'monospace', fontSize: 12 }}>{text}</span>
+    },
+    {
+      title: '客户诉求',
+      dataIndex: 'customerRequest',
+      key: 'customerRequest',
+      width: 150,
+      ellipsis: {
+        showTitle: false
+      },
+      render: (text) => (
+        <Tooltip title={text}>
+          <span>{text}</span>
+        </Tooltip>
+      )
+    },
+    {
+      title: '核身',
+      dataIndex: 'nuclearBodyStatus',
+      key: 'nuclearBodyStatus',
+      width: 80,
+      align: 'center',
+      render: (text) => {
+        const color = text === '是' ? '#31cc31' : text === '待核实' ? '#ff9e3d' : '#999';
+        return <span style={{ color }}>{text}</span>;
+      }
+    },
+    {
+      title: '客诉类别',
+      dataIndex: 'category',
+      key: 'category',
+      width: 150,
+      ellipsis: true,
+      render: (category) => {
+        const config = TICKET_CATEGORIES.find(c => c.value === category);
+        return config ? (
+          <Tag color={config.color} style={{ fontSize: '12px' }}>
+            {config.label}
+          </Tag>
+        ) : category;
+      }
+    },
+    {
+      title: '处理结果',
+      dataIndex: 'processingResult',
+      key: 'processingResult',
+      width: 200,
+      ellipsis: {
+        showTitle: false
+      },
+      render: (text) => text ? (
+        <Tooltip title={text}>
+          <span>{text}</span>
+        </Tooltip>
+      ) : <span style={{ color: '#999' }}>-</span>
+    },
+    {
+      title: '下次联系时间',
+      dataIndex: 'nextContactTime',
+      key: 'nextContactTime',
+      width: 160,
+      render: (text) => (text ? dayjs(text).format('YYYY-MM-DD HH:mm') : '-')
+    },
+    {
+      title: '完结时间',
+      dataIndex: 'completionTime',
+      key: 'completionTime',
+      width: 160,
+      render: (text) => (text ? dayjs(text).format('YYYY-MM-DD HH:mm') : '-')
+    },
+    {
+      title: '完结状态',
+      dataIndex: 'completionStatus',
+      key: 'completionStatus',
+      width: 160,
+      render: (status) => {
+        if (!status) return <span style={{ color: '#999' }}>-</span>;
+        const config = COMPLETION_STATUS.find(c => c.value === status);
+        return config ? (
+          <Tag color={config.color} style={{ fontSize: '12px' }}>{config.label}</Tag>
+        ) : status;
+      }
+    },
+    {
+      title: '跟进人',
+      dataIndex: 'follower',
+      key: 'follower',
+      width: 100,
+      render: (text) => text || <span style={{ color: '#999' }}>-</span>
+    },
+    {
+      title: '来源',
+      dataIndex: 'source',
+      key: 'source',
+      width: 110,
+      render: (source: TicketSource) => {
+        const config = SOURCE_CONFIG[source];
+        return config ? (
+          <span>{config.icon} {config.text}</span>
+        ) : source;
+      }
+    },
+    {
+      title: '社群渠道',
+      dataIndex: 'channel',
+      key: 'channel',
+      width: 130
+    },
+    {
+      title: '优先级',
+      dataIndex: 'priority',
+      key: 'priority',
+      width: 90,
+      sorter: true,
+      render: (priority: Priority) => {
+        const config = PRIORITY_CONFIG[priority];
+        return (
+          <Tag
+            className={`priority-tag-${priority}`}
+            style={{
+              background: config.color === '#3d7fff' ? '#e6f4ff' :
+                         config.color === '#ff9e3d' ? '#fff7e6' :
+                         config.color === '#ff3d3d' ? '#fff1f0' : '#f5f5f5',
+              color: config.color,
+              border: 'none',
+              fontWeight: 500
+            }}
+          >
+            {config.text}
+          </Tag>
+        );
+      }
+    },
+    {
+      title: '处理状态',
+      dataIndex: 'status',
+      key: 'status',
+      width: 100,
+      render: (status: TicketStatus) => {
+        const config = TICKET_STATUS[status];
+        return <Tag color={config.color}>{config.text}</Tag>;
+      }
+    },
+    {
+      title: '责任人',
+      dataIndex: 'assigneeId',
+      key: 'assigneeId',
+      width: 100,
+      render: (assigneeId) => {
+        if (!assigneeId) return <span style={{ color: '#999' }}>未分配</span>;
+        const user = users.find(u => u.id === assigneeId);
+        return user?.name || assigneeId;
+      }
+    },
+    {
+      title: '创建人',
+      dataIndex: 'creatorId',
+      key: 'creatorId',
+      width: 100,
+      render: (creatorId) => {
+        if (!creatorId) return '-';
+        const user = users.find(u => u.id === creatorId);
+        return user?.name || creatorId;
+      }
+    },
+    {
+      title: '提交人',
+      dataIndex: 'submitterName',
+      key: 'submitterName',
+      width: 110,
+      ellipsis: true
+    },
+    {
+      title: '创建时间',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: 160,
+      sorter: true,
+      render: (text) => dayjs(text).format('YYYY-MM-DD HH:mm')
+    },
+    {
+      title: '处理时限',
+      dataIndex: 'dueAt',
+      key: 'dueAt',
+      width: 180,
+      sorter: true,
+      render: (dueAt) => {
+        if (!dueAt) return '-';
+        const isOverdue = dayjs(dueAt).isBefore(dayjs());
+        return (
+          <span className={isOverdue ? 'overdue-text' : ''}>
+            {dayjs(dueAt).format('YYYY-MM-DD HH:mm')}
+            {isOverdue && <span className="overdue-badge">超时</span>}
+          </span>
+        );
+      }
+    },
+    {
+      title: '操作',
+      key: 'action',
+      width: 140,
+      fixed: 'right',
+      render: (_, record) => (
+        <Space size="small">
+          <Button
+            type="link"
+            size="small"
+            icon={<EyeOutlined />}
+            onClick={() => handleView(record)}
+          >
+            查看
+          </Button>
+          {canEdit && (
+            <Button
+              type="link"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => handleEdit(record)}
+            >
+              编辑
+            </Button>
+          )}
+        </Space>
+      )
+    }
+  ];
+
+  return (
+    <div className="ticket-list-page">
+      <Card>
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          {/* 筛选区域 */}
+          <div className="filter-section">
+            <Row gutter={[16, 16]}>
+              <Col span={6}>
+                <Input
+                  placeholder="搜索工单号/客户姓名/保单号"
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  onPressEnter={handleSearch}
+                  prefix={<SearchOutlined />}
+                />
+              </Col>
+              <Col span={4}>
+                <Select
+                  placeholder="状态"
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  allowClear
+                  style={{ width: '100%' }}
+                >
+                  <Select.Option value="pending">待处理</Select.Option>
+                  <Select.Option value="assigned">已分配</Select.Option>
+                  <Select.Option value="processing">处理中</Select.Option>
+                  <Select.Option value="pending_confirm">待确认</Select.Option>
+                  <Select.Option value="resolved">已解决</Select.Option>
+                  <Select.Option value="closed">已关闭</Select.Option>
+                  <Select.Option value="reopened">重新打开</Select.Option>
+                </Select>
+              </Col>
+              <Col span={4}>
+                <Select
+                  placeholder="优先级"
+                  value={priorityFilter}
+                  onChange={setPriorityFilter}
+                  allowClear
+                  style={{ width: '100%' }}
+                >
+                  <Select.Option value="urgent">紧急</Select.Option>
+                  <Select.Option value="high">高</Select.Option>
+                  <Select.Option value="medium">中</Select.Option>
+                  <Select.Option value="low">低</Select.Option>
+                </Select>
+              </Col>
+              <Col span={5}>
+                <Select
+                  placeholder="渠道"
+                  value={channelFilter}
+                  onChange={setChannelFilter}
+                  allowClear
+                  style={{ width: '100%' }}
+                >
+                  {channels.map(c => (
+                    <Select.Option key={c.id} value={c.name}>{c.name}</Select.Option>
+                  ))}
+                </Select>
+              </Col>
+              <Col span={5}>
+                <Select
+                  placeholder="责任人"
+                  value={assigneeFilter}
+                  onChange={setAssigneeFilter}
+                  allowClear
+                  style={{ width: '100%' }}
+                >
+                  <Select.Option value="unassigned">未分配</Select.Option>
+                  {users.filter(u => u.roleId !== 'R_VIEWER').map(u => (
+                    <Select.Option key={u.id} value={u.id}>{u.name}</Select.Option>
+                  ))}
+                </Select>
+              </Col>
+            </Row>
+            <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+              <Col span={4}>
+                <Select
+                  placeholder="来源"
+                  value={sourceFilter}
+                  onChange={setSourceFilter}
+                  allowClear
+                  style={{ width: '100%' }}
+                >
+                  <Select.Option value="feishu_form">飞书表单</Select.Option>
+                  <Select.Option value="manual">手动新增</Select.Option>
+                  <Select.Option value="community">社群</Select.Option>
+                </Select>
+              </Col>
+              <Col span={8}>
+                <RangePicker
+                  value={dateRange}
+                  onChange={setDateRange}
+                  style={{ width: '100%' }}
+                  placeholder={['开始日期', '结束日期']}
+                />
+              </Col>
+              <Col span={12}>
+                <Space>
+                  <Button type="primary" icon={<SearchOutlined />} onClick={handleSearch}>
+                    搜索
+                  </Button>
+                  <Button icon={<ReloadOutlined />} onClick={handleReset}>
+                    重置
+                  </Button>
+                  <Button icon={<DownloadOutlined />} onClick={handleExport}>
+                    导出Excel
+                  </Button>
+                  <Button
+                    icon={<ThunderboltOutlined />}
+                    style={{ color: '#3370ff', borderColor: '#3370ff' }}
+                    onClick={() => setFeishuOpen(true)}
+                  >
+                    模拟收到飞书表单
+                  </Button>
+                  {canCreate && (
+                    <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
+                      新增工单
+                    </Button>
+                  )}
+                </Space>
+              </Col>
+            </Row>
+          </div>
+
+          {/* 表格 */}
+          <Table
+            columns={columns}
+            dataSource={tickets}
+            rowKey="id"
+            loading={loading}
+            pagination={{
+              current: queryParams.page,
+              pageSize: queryParams.pageSize,
+              total,
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total) => `共 ${total} 条`
+            }}
+            onChange={handleTableChange}
+            scroll={{ x: 3440 }}
+          />
+        </Space>
+      </Card>
+
+      {/* 新增工单弹窗 */}
+      <Modal
+        title="新增工单"
+        open={createModalVisible}
+        onOk={handleCreateSubmit}
+        onCancel={() => setCreateModalVisible(false)}
+        width={700}
+        okText="创建"
+        cancelText="取消"
+      >
+        <Form form={createForm} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="项目" name="project" rules={[{ required: true, message: '请输入项目' }]}>
+                <Input placeholder="如：融盛" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="经纪主体" name="brokerageEntity" rules={[{ required: true }]}>
+                <Input placeholder="如：东方大地" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="支付渠道" name="paymentChannel" rules={[{ required: true }]}>
+                <Input placeholder="如：连连支付" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="保单号" name="policyNumber" rules={[{ required: true }]}>
+                <Input placeholder="请输入保单号" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="客户姓名" name="customerName" rules={[{ required: true }]}>
+                <Input placeholder="请输入客户姓名" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="客户手机号" name="phone" rules={[{ required: true }]}>
+                <Input placeholder="请输入手机号" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item label="客户诉求" name="customerRequest" rules={[{ required: true }]}>
+            <TextArea rows={3} placeholder="请描述客户诉求" />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="客诉类别" name="category" rules={[{ required: true }]}>
+                <Select placeholder="请选择" showSearch optionFilterProp="children">
+                  {TICKET_CATEGORIES.map(cat => (
+                    <Select.Option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="渠道" name="channel" rules={[{ required: true }]}>
+                <Select placeholder="请选择">
+                  {channels.map(c => (
+                    <Select.Option key={c.id} value={c.name}>{c.name}</Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="优先级" name="priority" rules={[{ required: true }]} initialValue="medium">
+                <Select>
+                  <Select.Option value="urgent">🔴 紧急</Select.Option>
+                  <Select.Option value="high">🟠 高</Select.Option>
+                  <Select.Option value="medium">🔵 中</Select.Option>
+                  <Select.Option value="low">⚪ 低</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="保司侧是否核身" name="nuclearBodyStatus" initialValue="否">
+                <Select>
+                  {NUCLEAR_STATUS.map(status => (
+                    <Select.Option key={status.value} value={status.value}>
+                      {status.label}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="处理时限" name="dueAt">
+                <DatePicker showTime style={{ width: '100%' }} placeholder="选择处理时限" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="期望完结时间" name="completionTime">
+                <DatePicker showTime style={{ width: '100%' }} placeholder="选择完结时间" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item label="提交人" name="submitterName" initialValue={authUser?.user.name}>
+            <Input placeholder="提交人" />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 编辑工单弹窗 */}
+      <Modal
+        title="编辑工单"
+        open={editModalVisible}
+        onOk={handleEditSubmit}
+        onCancel={() => {
+          setEditModalVisible(false);
+          setCurrentTicket(null);
+        }}
+        width={700}
+        okText="保存"
+        cancelText="取消"
+        destroyOnHidden
+      >
+        <Form form={editForm} layout="vertical">
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="项目" name="project" rules={[{ required: true, message: '请输入项目' }]}>
+                <Input placeholder="如：融盛" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="经纪主体" name="brokerageEntity" rules={[{ required: true }]}>
+                <Input placeholder="如：东方大地" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="支付渠道" name="paymentChannel" rules={[{ required: true }]}>
+                <Input placeholder="如：连连支付" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="保单号" name="policyNumber" rules={[{ required: true }]}>
+                <Input placeholder="请输入保单号" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="客户姓名" name="customerName" rules={[{ required: true }]}>
+                <Input placeholder="请输入客户姓名" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="客户手机号" name="phone" rules={[{ required: true }]}>
+                <Input placeholder="请输入手机号" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item label="客户诉求" name="customerRequest" rules={[{ required: true }]}>
+            <TextArea rows={3} placeholder="请描述客户诉求" />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="客诉类别" name="category" rules={[{ required: true }]}>
+                <Select placeholder="请选择" showSearch optionFilterProp="children">
+                  {TICKET_CATEGORIES.map(cat => (
+                    <Select.Option key={cat.value} value={cat.value}>
+                      {cat.label}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="社群渠道" name="channel" rules={[{ required: true }]}>
+                <Select placeholder="请选择">
+                  {channels.map(c => (
+                    <Select.Option key={c.id} value={c.name}>{c.name}</Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="优先级" name="priority" rules={[{ required: true }]}>
+                <Select>
+                  <Select.Option value="urgent">🔴 紧急</Select.Option>
+                  <Select.Option value="high">🟠 高</Select.Option>
+                  <Select.Option value="medium">🔵 中</Select.Option>
+                  <Select.Option value="low">⚪ 低</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="保司侧是否核身" name="nuclearBodyStatus">
+                <Select>
+                  {NUCLEAR_STATUS.map(status => (
+                    <Select.Option key={status.value} value={status.value}>
+                      {status.label}
+                    </Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="处理结果" name="processingResult">
+                <Input placeholder="填写处理结果" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="完结状态" name="completionStatus">
+                <Select placeholder="请选择" allowClear>
+                  {COMPLETION_STATUS.map(s => (
+                    <Select.Option key={s.value} value={s.value}>{s.label}</Select.Option>
+                  ))}
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item label="处理时限" name="dueAt">
+                <DatePicker showTime style={{ width: '100%' }} placeholder="选择处理时限" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="期望完结时间" name="completionTime">
+                <DatePicker showTime style={{ width: '100%' }} placeholder="选择完结时间" />
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
+
+      {/* 工单处理详情抽屉 */}
+      <TicketDetailDrawer
+        ticketId={drawerTicketId}
+        open={drawerOpen}
+        onClose={handleDrawerClose}
+        onUpdated={loadTickets}
+      />
+
+      {/* 模拟飞书进单表单 */}
+      <FeishuFormModal
+        open={feishuOpen}
+        channels={channels}
+        onClose={() => setFeishuOpen(false)}
+        onSubmitted={loadTickets}
+      />
+    </div>
+  );
+}
