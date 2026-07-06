@@ -450,8 +450,12 @@ export async function uploadAttachment(
   return ticket;
 }
 
-// 添加处理备注
-export async function addComment(ticketId: string, comment: string): Promise<Ticket> {
+// 添加处理备注（支持上传材料 + 联系次数+1）
+export async function addComment(
+  ticketId: string,
+  comment: string,
+  attachments?: Attachment[]
+): Promise<Ticket> {
   await delay();
 
   const currentUser = getCurrentUser();
@@ -471,14 +475,145 @@ export async function addComment(ticketId: string, comment: string): Promise<Tic
   const now = new Date().toISOString();
   ticket.updatedAt = now;
 
+  // 添加处理记录（含材料和操作人信息）
+  ticket.processLogs.push({
+    id: `L${Date.now()}_${ticket.processLogs.length + 1}`,
+    operatorId: currentUser.user.id,
+    operatorName: currentUser.user.name,
+    operatorAvatar: currentUser.user.name.charAt(0),
+    action: 'comment',
+    remark: comment,
+    attachments: attachments && attachments.length > 0 ? attachments : undefined,
+    at: now
+  });
+
+  // 联系次数 +1
+  ticket.contactCount = (ticket.contactCount || 0) + 1;
+
+  // 处理结果同步为最新备注
+  ticket.processingResult = comment;
+
+  // 更新跟进人为当前操作人
+  ticket.follower = currentUser.user.name;
+
+  // 如果当前是 pending/assigned 状态，自动转为 processing
+  if (ticket.status === 'pending' || ticket.status === 'assigned') {
+    ticket.status = 'processing';
+  }
+
+  return ticket;
+}
+
+// 批量分配工单（一对一、多对一）
+export async function batchAssign(ticketIds: string[], assigneeId: string): Promise<void> {
+  await delay();
+
+  const currentUser = getCurrentUser();
+  if (!currentUser) {
+    throw new Error('未登录');
+  }
+
+  if (!currentUser.role.permissions.includes('ticket.assign')) {
+    throw new Error('无分配权限');
+  }
+
+  const tickets = ticketIds.map(id => ticketsStore.find(t => t.id === id)).filter(Boolean) as Ticket[];
+
+  if (tickets.length === 0) {
+    throw new Error('未选择工单');
+  }
+
+  const now = new Date().toISOString();
+  tickets.forEach(ticket => {
+    const oldAssignee = ticket.assigneeId;
+    ticket.assigneeId = assigneeId;
+    ticket.updatedAt = now;
+    if (ticket.status === 'pending') {
+      ticket.status = 'assigned';
+    }
+
+    // 添加处理记录
+    ticket.processLogs.push({
+      id: `L${Date.now()}_${ticket.id}_${Math.random().toString(36).slice(2, 6)}`,
+      operatorId: currentUser.user.id,
+      operatorName: currentUser.user.name,
+      action: 'assign',
+      from: oldAssignee || 'unassigned',
+      to: assigneeId,
+      remark: `分配给${ticket.follower || '责任人'}`,
+      at: now
+    });
+
+    // 推送通知
+    pushNotification(
+      'reassigned',
+      `工单 ${ticket.workOrderNumber} 已分配给你`,
+      assigneeId,
+      ticket.id,
+      ticket.workOrderNumber
+    );
+  });
+}
+
+// 完结工单（带完结类型）
+export async function resolveTicket(
+  ticketId: string,
+  resolutionType: string,
+  remark: string
+): Promise<Ticket> {
+  await delay();
+
+  const currentUser = getCurrentUser();
+  if (!currentUser) {
+    throw new Error('未登录');
+  }
+
+  const ticket = ticketsStore.find(t => t.id === ticketId);
+  if (!ticket) {
+    throw new Error('工单不存在');
+  }
+
+  if (!canProcessTicket(ticket.assigneeId)) {
+    throw new Error('无权限处理此工单');
+  }
+
+  const now = new Date().toISOString();
+
+  // 更新状态
+  ticket.status = 'resolved';
+  ticket.completionTime = now;
+  ticket.completionStatus = resolutionType;
+  ticket.resolvedAt = now;
+  ticket.processingResult = remark;
+  ticket.updatedAt = now;
+
   // 添加处理记录
   ticket.processLogs.push({
     id: `L${Date.now()}_${ticket.processLogs.length + 1}`,
     operatorId: currentUser.user.id,
-    action: 'comment',
-    remark: comment,
+    operatorName: currentUser.user.name,
+    operatorAvatar: currentUser.user.name.charAt(0),
+    action: 'resolve',
+    from: ticket.status,
+    to: 'resolved',
+    remark: `完结类型：${resolutionType}。${remark}`,
     at: now
   });
+
+  return ticket;
+}
+
+// 设置下次联系时间
+export async function setNextContactTime(ticketId: string, nextContactTime: string): Promise<Ticket> {
+  await delay();
+
+  const ticket = ticketsStore.find(t => t.id === ticketId);
+  if (!ticket) {
+    throw new Error('工单不存在');
+  }
+
+  ticket.nextContactTime = nextContactTime;
+  ticket.updatedAt = new Date().toISOString();
 
   return ticket;
 }

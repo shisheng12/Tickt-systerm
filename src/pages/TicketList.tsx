@@ -18,7 +18,7 @@ import { CHANNEL_TYPE_CONFIG } from '../constants/complaintRules';
 import dayjs from 'dayjs';
 import type { Dayjs } from 'dayjs';
 import { useSearchParams } from 'react-router-dom';
-import TicketDetailDrawer from '../components/TicketDetailDrawer';
+import TicketProcessDrawer from '../components/TicketProcessDrawer';
 import FeishuFormModal from '../components/FeishuFormModal';
 import TicketForm from '../components/TicketForm';
 import { getTicketColumns } from './TicketListColumns';
@@ -420,13 +420,12 @@ export default function TicketList() {
         </Form>
       </Modal>
 
-      {/* 工单详情抽屉 */}
-      <TicketDetailDrawer
+      {/* 工单处理抽屉（3栏重构版） */}
+      <TicketProcessDrawer
         ticketId={drawerTicketId}
         open={drawerOpen}
         onClose={handleDrawerClose}
         onUpdated={loadTickets}
-        mode={drawerMode}
       />
 
       {/* 飞书进单表单 */}
