@@ -1,4 +1,4 @@
-// 生成模拟工单数据的脚本 - 重构版（27个字段）
+// 生成模拟工单数据的脚本 - 完整字段版本
 import type { Ticket, ComplaintLevel, ChannelType } from '../types';
 
 const projects = ['融盛', '泰康', '平安', '太保', '国寿'];
@@ -24,7 +24,8 @@ const categories = [
   '其他'
 ];
 
-const channels: ChannelType[] = ['保司渠道', '支付渠道', '内部工单', '客户反馈', '其它'];
+// 7种渠道类型（含监管）
+const channels: ChannelType[] = ['保司', '经纪', '支付', '监管', '内部工单', '客户反馈', '其它'];
 
 const customerRequests = [
   '要求退保并退还全部保费',
@@ -42,13 +43,14 @@ const customerRequests = [
 const priorities: Array<'low' | 'medium' | 'high' | 'urgent'> = ['low', 'medium', 'high', 'urgent'];
 const statuses: Array<Ticket['status']> = ['pending', 'assigned', 'processing', 'pending_confirm', 'resolved', 'closed', 'reopened'];
 const sources: Array<Ticket['source']> = ['feishu_form', 'manual', 'community'];
-const completionStatuses = ['未取得有效联系', '已达成一致', '诉求过高，无法达成一致', '冷处理', ''];
+const completionStatuses = ['正常完结', '冷处理', '联系不上', ''];
 const complaintLevels: ComplaintLevel[] = ['一般工单', '紧急工单', '加急工单', '特急工单'];
 const nuclearStatuses = ['是', '否', '待核实'];
 const followers = ['李四', '赵六', '孙七', '周八', '郑十', '陈十二'];
+const creators = ['张三', '李四', '王五', '外部'];
+const userComplaintChannels = ['飞书投诉', '400热线', '客服来电', '微信', '邮件', 'APP', '其他'];
 const submitters = ['张三', '外部用户-王磊', '外部用户-李娜', '系统自动', '客服热线'];
 
-// 用户ID列表（对应 users.json）
 const userIds = ['U1002', 'U1004', 'U1005', 'U1006', 'U1008', 'U1010', null];
 
 function randomItem<T>(arr: T[]): T {
@@ -70,16 +72,19 @@ function generatePolicyNumber(): string {
   const prefix = ['P', 'L', 'H'];
   const year = 2024 + Math.floor(Math.random() * 3);
   const random = Math.floor(Math.random() * 1e12).toString().padStart(12, '0');
-  return `${randomItem(prefix)}${year}${random}`;
+  return `${prefix}${year}${random}`;
 }
 
 function generateInternalOrderNumber(): string | undefined {
-  // 50% 概率有内部订单号
   if (Math.random() < 0.5) return undefined;
   return `IO${Date.now().toString().slice(-10)}${Math.floor(Math.random() * 1000)}`;
 }
 
-// 根据投诉等级获取跟进要求
+function generateContactId(): string | undefined {
+  if (Math.random() < 0.6) return undefined;
+  return `CI${Date.now().toString().slice(-10)}${Math.floor(Math.random() * 1000)}`;
+}
+
 function getFollowUpRequirements(level: ComplaintLevel): { frequency: string; firstResponse: string } {
   const map: Record<ComplaintLevel, { frequency: string; firstResponse: string }> = {
     '一般工单': { frequency: '至少3天1次', firstResponse: '分派后4小时内触达' },
@@ -100,11 +105,13 @@ function generateTicket(index: number): Ticket {
   const source = randomItem(sources);
   const complaintLevel = randomItem(complaintLevels);
   const followUpReqs = getFollowUpRequirements(complaintLevel);
+  const channel = randomItem(channels);
+  const creator = randomItem(creators);
+  const isExternal = creator === '外部';
 
   const createdDate = new Date(createdAt);
   const updatedAt = new Date(createdDate.getTime() + Math.random() * 48 * 60 * 60 * 1000).toISOString();
 
-  // 处理时限/完结时间
   let completionTime: string | null = null;
   let dueAt: string | null = null;
   if (priority === 'urgent') {
@@ -115,23 +122,19 @@ function generateTicket(index: number): Ticket {
     dueAt = new Date(createdDate.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
   }
 
-  // 已完结的设置完结时间
   let resolvedAt: string | null = null;
   if (status === 'resolved' || status === 'closed') {
     resolvedAt = new Date(createdDate.getTime() + Math.random() * 5 * 24 * 60 * 60 * 1000).toISOString();
     completionTime = resolvedAt;
   }
 
-  // 联系次数（处理记录数）
   const contactCount = status === 'pending' ? 0 : Math.floor(Math.random() * 5) + 1;
 
-  // 下次联系时间（未完结的50%有）
   let nextContactTime: string | null = null;
   if (status !== 'resolved' && status !== 'closed' && Math.random() < 0.5) {
     nextContactTime = new Date(Date.now() + Math.random() * 3 * 24 * 60 * 60 * 1000).toISOString();
   }
 
-  // 处理结果汇总
   const processingResults = [
     '已联系客户，客户要求继续跟进',
     '客户暂未接听，已留言',
@@ -150,37 +153,43 @@ function generateTicket(index: number): Ticket {
     id: `T${String(index + 1).padStart(4, '0')}`,
     workOrderNumber,
     feedbackTime,
+    source,
+    channel,
     project: randomItem(projects),
     brokerageEntity: randomItem(brokerageEntities),
     paymentChannel: randomItem(paymentChannels),
     internalOrderNumber: generateInternalOrderNumber(),
     policyNumber: generatePolicyNumber(),
+    userComplaintChannel: randomItem(userComplaintChannels),
     customerName: `客户${String.fromCharCode(0x5f20 + Math.floor(Math.random() * 100))}${'甲乙丙丁戊己庚辛壬癸'[Math.floor(Math.random() * 10)]}`,
     phone: randomPhone(),
+    contactPhone: Math.random() > 0.5 ? randomPhone() : undefined,
     customerRequest: randomItem(customerRequests),
     nuclearBodyStatus: randomItem(nuclearStatuses),
     category: randomItem(categories),
+    complaintLevel,
+    followUpFrequency: followUpReqs.frequency,
+    firstResponseRequirement: followUpReqs.firstResponse,
+    priority,
+    status,
     processingResult,
     contactCount,
     nextContactTime,
     completionTime,
     completionStatus: (status === 'resolved' || status === 'closed') ? randomItem(completionStatuses) : '',
     follower: contactCount > 0 ? randomItem(followers) : '',
-    source,
-    channel: randomItem(channels),
-    priority,
-    status,
-    createdAt,
-    submitterName: randomItem(submitters),
-    complaintLevel,
-    followUpFrequency: followUpReqs.frequency,
-    firstResponseRequirement: followUpReqs.firstResponse,
+    creator: isExternal ? '外部' : creator,
+    creatorName: isExternal ? '外部用户' : creator,
+    submitterName: isExternal ? `外部用户-${workOrderNumber}` : randomItem(submitters),
+    hasContacted: Math.random() > 0.4,
+    contactId: generateContactId(),
 
     // 系统字段
     assigneeId,
+    dueAt,
+    createdAt,
     updatedAt,
     resolvedAt,
-    dueAt,
     processLogs: [],
     attachments: []
   };

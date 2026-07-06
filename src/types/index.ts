@@ -1,4 +1,4 @@
-// 类型定义文件 - 基于优化需求重构
+// 类型定义文件 - 全面优化版本
 
 // 工单来源
 export type TicketSource = 'feishu_form' | 'manual' | 'community';
@@ -6,7 +6,7 @@ export type TicketSource = 'feishu_form' | 'manual' | 'community';
 // 优先级
 export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
-// 工单处理状态
+// 工单处理状态（核心6状态 + 2个虚拟状态）
 export type TicketStatus =
   | 'pending'           // 待处理
   | 'assigned'          // 已分配
@@ -14,22 +14,51 @@ export type TicketStatus =
   | 'pending_confirm'   // 待确认
   | 'resolved'          // 已解决
   | 'closed'            // 已关闭
-  | 'reopened';         // 重新打开
+  | 'reopened'          // 重新打开
+  | 'pending_timeout';  // 虚拟状态：待超时（2小时内）
 
-// 完结状态
-export type CompletionStatus = '未取得有效联系' | '已达成一致' | '诉求过高，无法达成一致' | '冷处理';
+// Dashboard筛选用的状态枚举（含虚拟状态）
+export type DashboardStatusFilter =
+  | 'pending'
+  | 'processing'
+  | 'resolved'
+  | 'pending_timeout'
+  | 'overdue';
+
+// 完结状态（处理完结弹窗选项）
+export type CompletionStatus =
+  | '正常完结'
+  | '冷处理'
+  | '联系不上'
+  | '未取得有效联系'
+  | '已达成一致'
+  | '诉求过高，无法达成一致';
 
 // 班次类型
 export type ShiftType = 'day' | 'mid' | 'night';
 
-// 渠道类型（重构）
-export type ChannelType = '保司渠道' | '支付渠道' | '内部工单' | '客户反馈' | '其它';
+// 渠道类型（5种）
+export type ChannelType =
+  | '保司'        // 保司渠道
+  | '经纪'        // 经纪主体
+  | '支付'        // 支付渠道
+  | '监管'        // 监管渠道
+  | '内部工单'
+  | '客户反馈'
+  | '其它';
 
 // 导出文件格式
 export type ExportFormat = 'xlsx' | 'csv' | 'pdf';
 
 // 处理记录操作类型
-export type ProcessAction = 'create' | 'assign' | 'status_change' | 'comment' | 'upload' | 'export';
+export type ProcessAction =
+  | 'create'
+  | 'assign'
+  | 'status_change'
+  | 'comment'      // 添加处理备注（每次联系次数+1）
+  | 'upload'       // 上传材料
+  | 'export'
+  | 'resolve';     // 确认完结
 
 // 权限点
 export type Permission =
@@ -58,6 +87,8 @@ export interface Attachment {
 export interface ProcessLog {
   id: string;
   operatorId: string;
+  operatorName?: string;    // 操作人姓名（冗余存储，避免每次查表）
+  operatorAvatar?: string;   // 操作人头像
   action: ProcessAction;
   from?: string;
   to?: string;
@@ -66,42 +97,62 @@ export interface ProcessLog {
   at: string;
 }
 
-// 工单（重构字段）
+// 工单（完整字段）
 export interface Ticket {
   id: string;
   workOrderNumber: string;               // 工单号
+
+  // 反馈信息
   feedbackTime: string;                  // 反馈时间
+  source: TicketSource;                  // 来源（feishu_form/manual/community）
+  channel: ChannelType;                  // 反馈渠道（保司/经纪/支付/监管/内部/客户/其它）
+
+  // 业务信息
   project: string;                       // 项目（保司）
   brokerageEntity: string;               // 经纪主体
   paymentChannel: string;                // 支付渠道
   internalOrderNumber?: string;          // 内部订单号（非必填）
   policyNumber: string;                  // 保单号
+  userComplaintChannel: string;          // 用户投诉渠道（手动填写）
+
+  // 客户信息
   customerName: string;                  // 客户姓名
-  phone: string;                         // 客户电话
+  phone: string;                         // 客户电话（投保人）
+  contactPhone?: string;                 // 联系人电话
   customerRequest: string;               // 客户诉求
   nuclearBodyStatus: string;             // 保司侧是否核身
+
+  // 分类信息
   category: string;                      // 客诉类别
-  processingResult: string;              // 处理结果（处理记录汇总展示）
-  contactCount: number;                  // 联系次数（处理记录数）
-  nextContactTime: string | null;        // 下次联系时间
-  completionTime: string | null;         // 完结时间（原处理时限字段）
-  completionStatus: string;              // 完结状态
-  follower: string;                      // 跟进人
-  source: TicketSource;                  // 来源
-  channel: ChannelType;                  // 渠道（重构为新类型）
-  priority: Priority;                    // 优先级
-  status: TicketStatus;                  // 处理状态
-  createdAt: string;                     // 创建时间
-  submitterName: string;                 // 提交人
   complaintLevel: ComplaintLevel;        // 投诉等级
   followUpFrequency: string;             // 跟进频次要求
   firstResponseRequirement: string;      // 首响要求
 
+  // 处理信息
+  priority: Priority;                    // 优先级
+  status: TicketStatus;                  // 处理状态
+  processingResult: string;              // 处理结果（最后一条）
+  contactCount: number;                  // 联系次数（处理操作次数）
+  nextContactTime: string | null;        // 下次联系时间
+  completionTime: string | null;         // 完结时间
+  completionStatus: string;              // 完结状态
+  follower: string;                      // 跟进人（最后一个）
+
+  // 用户信息
+  creator: string;                       // 创建人（外部填写的默认为外部）
+  creatorName: string;                   // 创建人姓名
+  submitterName: string;                 // 提交人
+
+  // 客户进线信息
+  hasContacted: boolean;                 // 客户是否曾进线
+  contactId?: string;                    // 进线ID
+
   // 系统字段
-  assigneeId: string | null;             // 责任人ID（内部使用，列表不展示）
+  assigneeId: string | null;             // 责任人ID
+  dueAt: string | null;                  // 到期时间
+  createdAt: string;                     // 创建时间
   updatedAt: string;                     // 更新时间
   resolvedAt: string | null;             // 解决时间
-  dueAt: string | null;                  // 到期时间（内部使用）
   processLogs: ProcessLog[];             // 处理记录
   attachments: Attachment[];             // 附件
 }
@@ -153,9 +204,12 @@ export interface AuthUser {
 // 查询筛选条件
 export interface TicketQueryParams {
   keyword?: string;
-  status?: TicketStatus;
+  status?: TicketStatus | 'pending_timeout' | 'overdue'; // 支持虚拟状态
   priority?: Priority;
   channel?: ChannelType;
+  complaintLevel?: string;
+  phone?: string;
+  hasContacted?: string;
   assigneeId?: string;
   source?: TicketSource;
   startDate?: string;

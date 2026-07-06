@@ -52,13 +52,20 @@ export default function TicketList() {
   const [priorityFilter, setPriorityFilter] = useState<string | undefined>();
   const [channelFilter, setChannelFilter] = useState<ChannelType | undefined>();
   const [dateRange, setDateRange] = useState<[Dayjs, Dayjs] | null>(null);
+  const [complaintLevelFilter, setComplaintLevelFilter] = useState<string | undefined>();
+  const [phoneFilter, setPhoneFilter] = useState<string>('');
+  const [hasContactedFilter, setHasContactedFilter] = useState<string | undefined>();
+
+  // 多选状态
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchAssignModalVisible, setBatchAssignModalVisible] = useState(false);
 
   // 弹窗状态
   const [createModalVisible, setCreateModalVisible] = useState(false);
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTicketId, setDrawerTicketId] = useState<string | null>(null);
-  const [drawerMode, setDrawerMode] = useState<'view' | 'process'>('view'); // 抽屉模式
+  const [drawerMode] = useState<'process'>('process');
   const [feishuOpen, setFeishuOpen] = useState(false);
   const [currentTicket, setCurrentTicket] = useState<Ticket | null>(null);
 
@@ -74,11 +81,38 @@ export default function TicketList() {
     loadAuxData();
   }, []);
 
-  // 从 URL 参数初始化筛选条件
+  // 从 URL 参数初始化筛选条件（Dashboard卡片跳转）
   useEffect(() => {
     const statusFromUrl = searchParams.get('status');
+    const channelFromUrl = searchParams.get('channel');
+    const complaintLevelFromUrl = searchParams.get('complaintLevel');
+    const keywordFromUrl = searchParams.get('keyword');
+    const policyFromUrl = searchParams.get('policyNumber');
+
+    let hasFilter = false;
+
     if (statusFromUrl) {
       setStatusFilter(statusFromUrl);
+      hasFilter = true;
+    }
+    if (channelFromUrl) {
+      setChannelFilter(channelFromUrl as any);
+      hasFilter = true;
+    }
+    if (complaintLevelFromUrl) {
+      setComplaintLevelFilter(complaintLevelFromUrl);
+      hasFilter = true;
+    }
+    if (keywordFromUrl) {
+      setKeyword(keywordFromUrl);
+      hasFilter = true;
+    }
+    if (policyFromUrl) {
+      setPolicyNumberFilter(policyFromUrl);
+      hasFilter = true;
+    }
+
+    if (hasFilter) {
       setTimeout(() => handleSearch(), 100);
     }
   }, [searchParams]);
@@ -118,6 +152,9 @@ export default function TicketList() {
       status: statusFilter as any,
       priority: priorityFilter as any,
       channel: channelFilter,
+      complaintLevel: complaintLevelFilter as any,
+      phone: phoneFilter,
+      hasContacted: hasContactedFilter,
       startDate: dateRange?.[0]?.format('YYYY-MM-DD'),
       endDate: dateRange?.[1]?.format('YYYY-MM-DD')
     });

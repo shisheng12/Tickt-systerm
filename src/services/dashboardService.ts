@@ -1,80 +1,60 @@
-// Dashboard 统计数据服务（优化版：数据权限隔离 + 环比 + 实用图表）
-import type { Ticket, TicketStatus, Priority } from '../types';
+// Dashboard 统计数据服务 - 8卡片+2图表
+import type { Ticket, ChannelType } from '../types';
 import { getAllTickets } from './ticketService';
 import { getUsers } from './roleService';
 import { getCurrentUser } from './authService';
 import dayjs from 'dayjs';
-import isBetween from 'dayjs/plugin/isBetween';
 
-dayjs.extend(isBetween);
-
-// 延迟模拟
 const delay = (ms = 300) => new Promise(resolve => setTimeout(resolve, ms));
 
-// 统计查询参数（仅保留日期筛选）
 export interface DashboardQuery {
-  startDate?: string; // ISO date string
+  startDate?: string;
   endDate?: string;
 }
 
-// 指标卡数据（带环比）
-export interface MetricCard {
-  value: number;
-  label: string;
-  trend?: number; // 环比变化百分比，正数上升、负数下降
-  status?: TicketStatus; // 用于跳转时传递筛选条件
+// 8个指标卡
+export interface DashboardCards {
+  total: number;           // 工单总数
+  pending: number;         // 待处理数
+  processing: number;      // 处理中数
+  resolved: number;        // 已完结数
+  pendingTimeout: number;  // 2小时超时预警
+  overdue: number;         // 已超时
+  special: number;         // 特级工单数
+  supervision: number;     // 监管单数
 }
 
-// 紧急待处理工单
-export interface UrgentTicket {
-  id: string;
-  workOrderNumber: string;
-  customerName: string;
-  category: string;
-  priority: Priority;
-  dueAt: string | null;
-  overdueDays: number; // 正数=已超时天数，负数=距超时天数
+// 渠道统计
+export interface ChannelStats {
+  channel: string;
+  total: number;
+  pending: number;
+  processing: number;
+  pendingTimeout: number;
+  overdue: number;
 }
 
-// 责任人负载 + 超时率
-export interface AssigneeLoad {
-  assigneeId: string;
-  assigneeName: string;
-  inProgress: number;   // 处理中
-  overdue: number;      // 超时数
-  overdueRate: number;  // 超时率（百分比）
+// 跟进人统计
+export interface AssigneeStats {
+  name: string;
+  userId: string;
+  created: number;   // 进单
+  resolved: number;  // 完单
+  overdue: number;   // 超时
 }
 
-// 趋势数据（近7天）
-export interface TrendData {
-  date: string; // YYYY-MM-DD
-  created: number;
-  resolved: number;
-}
-
-// 智能建议
-export interface Suggestion {
-  type: 'warning' | 'info' | 'success';
-  content: string;
-}
-
-// 综合统计结果
 export interface DashboardStats {
-  cards: MetricCard[];
-  urgentTickets: UrgentTicket[];
-  assigneeLoad: AssigneeLoad[];
-  trendData: TrendData[];
-  suggestions: Suggestion[];
+  cards: DashboardCards;
+  channelStats: ChannelStats[];
+  assigneeStats: AssigneeStats[];
+  suggestions: { type: string; content: string }[];
 }
 
-// 获取 Dashboard 统计数据（带权限隔离）
 export async function getDashboardStats(query: DashboardQuery = {}): Promise<DashboardStats> {
   await delay();
 
   const currentAuth = getCurrentUser();
-  if (!currentAuth) {
-    throw new Error('未登录');
-  }
+  if (!currentAuth) throw new Error('未登录');
 
   const { user, role } = currentAuth;
   const allTickets = await getAllTickets();
@@ -83,21 +63,17 @@ export async function getDashboardStats(query: DashboardQuery = {}): Promise<Das
   // 数据权限隔离
   let tickets: Ticket[] = [];
   if (role.id === 'R_ADMIN') {
-    // 管理员：看全部
     tickets = allTickets;
   } else if (role.id === 'R_LEAD') {
-    // 主管：看本 team 客服负责的工单
     const teamUserIds = allUsers.filter(u => u.team === user.team).map(u => u.id);
     tickets = allTickets.filter(t => t.assigneeId && teamUserIds.includes(t.assigneeId));
   } else if (role.id === 'R_AGENT') {
-    // 专员：只看自己负责的
     tickets = allTickets.filter(t => t.assigneeId === user.id);
   } else {
-    // 其他角色（只读观察）无权访问
     throw new Error('当前角色无权访问数据总览');
   }
 
-  // 日期范围筛选
+  // 日期筛选
   if (query.startDate || query.endDate) {
     const start = query.startDate ? dayjs(query.startDate) : null;
     const end = query.endDate ? dayjs(query.endDate) : null;
@@ -110,169 +86,115 @@ export async function getDashboardStats(query: DashboardQuery = {}): Promise<Das
   }
 
   const now = dayjs();
-  const total = tickets.length;
+  const inTwoHours = now.add(2, 'hour');
 
-  // 统计各状态工单数
+  // 8个核心指标
   const pending = tickets.filter(t => t.status === 'pending').length;
   const processing = tickets.filter(
-    t => t.status === 'processing' || t.status === 'assigned'
+    t => t.status === 'processing' || t.status === 'assigned' || t.status === 'pending_confirm'
   ).length;
   const resolved = tickets.filter(
     t => t.status === 'resolved' || t.status === 'closed'
   ).length;
-  const overdue = tickets.filter(
-    t => t.dueAt && dayjs(t.dueAt).isBefore(now) && t.status !== 'resolved' && t.status !== 'closed'
-  ).length;
 
-  // 环比计算（与上周期对比）
-  const periodDays = query.startDate && query.endDate
-    ? dayjs(query.endDate).diff(dayjs(query.startDate), 'day') + 1
-    : 7; // 默认7天
-  const prevStart = now.subtract(periodDays * 2, 'day');
-  const prevEnd = now.subtract(periodDays, 'day');
+  // 2小时超时预警：dueAt 在 0-2小时之间
+  const pendingTimeout = tickets.filter(t => {
+    if (!t.dueAt) return false;
+    if (t.status === 'resolved' || t.status === 'closed') return false;
+    const due = dayjs(t.dueAt);
+    return due.isAfter(now) && due.isBefore(inTwoHours);
+  }).length;
 
-  // 根据权限隔离同样筛选上周期数据
-  let prevTickets = allTickets.filter(t => {
-    const created = dayjs(t.createdAt);
-    return created.isBetween(prevStart, prevEnd, 'day', '[]');
-  });
-  if (role.id === 'R_LEAD') {
-    const teamUserIds = allUsers.filter(u => u.team === user.team).map(u => u.id);
-    prevTickets = prevTickets.filter(t => t.assigneeId && teamUserIds.includes(t.assigneeId));
-  } else if (role.id === 'R_AGENT') {
-    prevTickets = prevTickets.filter(t => t.assigneeId === user.id);
-  }
+  // 已超时：dueAt 已过且未完结
+  const overdue = tickets.filter(t => {
+    if (!t.dueAt) return false;
+    if (t.status === 'resolved' || t.status === 'closed') return false;
+    return dayjs(t.dueAt).isBefore(now);
+  }).length;
 
-  const prevTotal = prevTickets.length;
-  const prevPending = prevTickets.filter(t => t.status === 'pending').length;
-  const prevProcessing = prevTickets.filter(
-    t => t.status === 'processing' || t.status === 'assigned'
-  ).length;
-  const prevResolved = prevTickets.filter(
-    t => t.status === 'resolved' || t.status === 'closed'
-  ).length;
+  // 特级工单数
+  const special = tickets.filter(t => t.complaintLevel === '特急工单').length;
 
-  const calcTrend = (curr: number, prev: number) => {
-    if (prev === 0) return curr > 0 ? 100 : 0;
-    return Math.round(((curr - prev) / prev) * 100);
+  // 监管单数
+  const supervision = tickets.filter(t => t.channel === '监管').length;
+
+  const cards: DashboardCards = {
+    total: tickets.length,
+    pending,
+    processing,
+    resolved,
+    pendingTimeout,
+    overdue,
+    special,
+    supervision
   };
 
-  // 指标卡片
-  const cards: MetricCard[] = [
-    { value: total, label: '工单总数', trend: calcTrend(total, prevTotal) },
-    { value: pending, label: '待处理', trend: calcTrend(pending, prevPending), status: 'pending' },
-    {
-      value: processing,
-      label: '处理中',
-      trend: calcTrend(processing, prevProcessing),
-      status: 'processing'
-    },
-    { value: resolved, label: '已完结', trend: calcTrend(resolved, prevResolved), status: 'resolved' },
-    { value: overdue, label: '超时预警', trend: calcTrend(overdue, 0) }
-  ];
+  // 渠道统计（7个渠道）
+  const channelMap = new Map<ChannelType, ChannelStats>();
+  const allChannels: ChannelType[] = ['保司', '经纪', '支付', '监管', '内部工单', '客户反馈', '其它'];
 
-  // 紧急待处理工单（高优先级或临近超时，未完结）
-  const urgentTickets: UrgentTicket[] = tickets
-    .filter(
-      t =>
-        (t.priority === 'urgent' || t.priority === 'high') &&
-        t.status !== 'resolved' &&
-        t.status !== 'closed'
-    )
-    .map(t => {
-      const overdueDays = t.dueAt ? dayjs(now).diff(dayjs(t.dueAt), 'day') : 0;
-      return {
-        id: t.id,
-        workOrderNumber: t.workOrderNumber,
-        customerName: t.customerName,
-        category: t.category,
-        priority: t.priority,
-        dueAt: t.dueAt,
-        overdueDays
-      };
-    })
-    .sort((a, b) => b.overdueDays - a.overdueDays)
-    .slice(0, 10);
+  allChannels.forEach(ch => {
+    const list = tickets.filter(t => t.channel === ch);
+    channelMap.set(ch, {
+      channel: ch,
+      total: list.length,
+      pending: list.filter(t => t.status === 'pending').length,
+      processing: list.filter(t => t.status === 'processing' || t.status === 'assigned').length,
+      pendingTimeout: list.filter(t => {
+        if (!t.dueAt) return false;
+        if (t.status === 'resolved' || t.status === 'closed') return false;
+        const due = dayjs(t.dueAt);
+        return due.isAfter(now) && due.isBefore(inTwoHours);
+      }).length,
+      overdue: list.filter(t => {
+        if (!t.dueAt) return false;
+        if (t.status === 'resolved' || t.status === 'closed') return false;
+        return dayjs(t.dueAt).isBefore(now);
+      }).length
+    });
+  });
 
-  // 责任人负载 + 超时率
-  const assigneeMap = new Map<string, { inProgress: number; overdue: number }>();
+  // 跟进人统计
+  const assigneeMap = new Map<string, { name: string; created: number; resolved: number; overdue: number }>();
   tickets.forEach(t => {
     if (!t.assigneeId) return;
-    if (t.status === 'processing' || t.status === 'assigned') {
-      if (!assigneeMap.has(t.assigneeId)) {
-        assigneeMap.set(t.assigneeId, { inProgress: 0, overdue: 0 });
-      }
-      const stats = assigneeMap.get(t.assigneeId)!;
-      stats.inProgress++;
-      if (t.dueAt && dayjs(t.dueAt).isBefore(now)) {
-        stats.overdue++;
-      }
+    const userId = t.assigneeId;
+    const name = allUsers.find(u => u.id === userId)?.name || userId;
+    if (!assigneeMap.has(userId)) {
+      assigneeMap.set(userId, { name, created: 0, resolved: 0, overdue: 0 });
+    }
+    const s = assigneeMap.get(userId)!;
+    s.created++;
+    if (t.status === 'resolved' || t.status === 'closed') s.resolved++;
+    if (t.dueAt && dayjs(t.dueAt).isBefore(now) && t.status !== 'resolved' && t.status !== 'closed') {
+      s.overdue++;
     }
   });
 
-  const assigneeLoad: AssigneeLoad[] = Array.from(assigneeMap.entries())
-    .map(([assigneeId, stats]) => ({
-      assigneeId,
-      assigneeName: allUsers.find(u => u.id === assigneeId)?.name || assigneeId,
-      inProgress: stats.inProgress,
-      overdue: stats.overdue,
-      overdueRate: stats.inProgress > 0 ? Math.round((stats.overdue / stats.inProgress) * 100) : 0
-    }))
-    .sort((a, b) => b.overdueRate - a.overdueRate || b.inProgress - a.inProgress)
-    .slice(0, 8);
-
-  // 趋势数据（近7天）
-  const trendData: TrendData[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const date = now.subtract(i, 'day').format('YYYY-MM-DD');
-    const created = tickets.filter(t => dayjs(t.createdAt).format('YYYY-MM-DD') === date).length;
-    const resolved = tickets.filter(
-      t => t.resolvedAt && dayjs(t.resolvedAt).format('YYYY-MM-DD') === date
-    ).length;
-    trendData.push({ date, created, resolved });
-  }
+  const assigneeStats: AssigneeStats[] = Array.from(assigneeMap.entries())
+    .map(([userId, s]) => ({ userId, ...s }))
+    .sort((a, b) => b.created - a.created)
+    .slice(0, 10);
 
   // 智能建议
-  const suggestions: Suggestion[] = [];
+  const suggestions: { type: string; content: string }[] = [];
   if (overdue > 5) {
-    suggestions.push({
-      type: 'warning',
-      content: `当前有 ${overdue} 个工单超时未完结，建议优先处理高优先级工单或调配人力`
-    });
+    suggestions.push({ type: 'warning', content: `当前有 ${overdue} 个工单已超时，请优先处理` });
   }
-  if (pending > processing * 2) {
-    suggestions.push({
-      type: 'warning',
-      content: `待处理工单积压（${pending} 个），建议及时分配责任人`
-    });
+  if (pendingTimeout > 0) {
+    suggestions.push({ type: 'warning', content: `${pendingTimeout} 个工单将在2小时内超时` });
   }
-  const highOverdueAgent = assigneeLoad.find(a => a.overdueRate > 50);
-  if (highOverdueAgent) {
-    suggestions.push({
-      type: 'info',
-      content: `${highOverdueAgent.assigneeName} 超时率较高（${highOverdueAgent.overdueRate}%），建议协调资源或培训支持`
-    });
-  }
-  const avgCreatedLast3Days = trendData.slice(-3).reduce((sum, d) => sum + d.created, 0) / 3;
-  const avgResolvedLast3Days = trendData.slice(-3).reduce((sum, d) => sum + d.resolved, 0) / 3;
-  if (avgCreatedLast3Days > avgResolvedLast3Days * 1.5) {
-    suggestions.push({
-      type: 'warning',
-      content: '近3天进单速度明显快于处理速度，注意人力储备和排班安排'
-    });
+  if (supervision > 0) {
+    suggestions.push({ type: 'info', content: `当前有 ${supervision} 个监管单需特别关注` });
   }
   if (suggestions.length === 0) {
-    suggestions.push({
-      type: 'success',
-      content: '工单处理状况良好，保持当前节奏'
-    });
+    suggestions.push({ type: 'success', content: '工单处理状况良好' });
   }
 
   return {
     cards,
-    urgentTickets,
-    assigneeLoad,
-    trendData,
+    channelStats: Array.from(channelMap.values()),
+    assigneeStats,
     suggestions
   };
 }

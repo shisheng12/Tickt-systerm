@@ -45,6 +45,9 @@ export async function queryTickets(params: TicketQueryParams = {}): Promise<Pagi
     status,
     priority,
     channel,
+    complaintLevel,
+    phone,
+    hasContacted,
     assigneeId,
     source,
     startDate,
@@ -64,13 +67,44 @@ export async function queryTickets(params: TicketQueryParams = {}): Promise<Pagi
       t.workOrderNumber.toLowerCase().includes(kw) ||
       t.customerName.toLowerCase().includes(kw) ||
       t.customerRequest.toLowerCase().includes(kw) ||
-      t.policyNumber.toLowerCase().includes(kw)
+      t.policyNumber.toLowerCase().includes(kw) ||
+      (t.internalOrderNumber && t.internalOrderNumber.toLowerCase().includes(kw))
     );
   }
 
-  // 状态筛选
+  // 电话筛选
+  if (phone) {
+    filtered = filtered.filter(t => t.phone && t.phone.includes(phone));
+  }
+
+  // 状态筛选（支持虚拟状态）
   if (status) {
-    filtered = filtered.filter(t => t.status === status);
+    const now = new Date();
+    const inTwoHours = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+    if (status === 'pending_timeout') {
+      filtered = filtered.filter(t => {
+        if (!t.dueAt) return false;
+        if (t.status === 'resolved' || t.status === 'closed') return false;
+        const due = new Date(t.dueAt);
+        return due > now && due < inTwoHours;
+      });
+    } else if (status === 'overdue') {
+      filtered = filtered.filter(t => {
+        if (!t.dueAt) return false;
+        if (t.status === 'resolved' || t.status === 'closed') return false;
+        return new Date(t.dueAt) < now;
+      });
+    } else if (status === 'processing') {
+      // 处理中：包含 processing、assigned、pending_confirm
+      filtered = filtered.filter(t =>
+        t.status === 'processing' || t.status === 'assigned' || t.status === 'pending_confirm'
+      );
+    } else if (status === 'resolved') {
+      // 已完结：包含 resolved 和 closed
+      filtered = filtered.filter(t => t.status === 'resolved' || t.status === 'closed');
+    } else {
+      filtered = filtered.filter(t => t.status === status);
+    }
   }
 
   // 优先级筛选
@@ -78,9 +112,20 @@ export async function queryTickets(params: TicketQueryParams = {}): Promise<Pagi
     filtered = filtered.filter(t => t.priority === priority);
   }
 
+  // 投诉等级筛选
+  if (complaintLevel) {
+    filtered = filtered.filter(t => t.complaintLevel === complaintLevel);
+  }
+
   // 渠道筛选
   if (channel) {
     filtered = filtered.filter(t => t.channel === channel);
+  }
+
+  // 客户是否曾进线
+  if (hasContacted !== undefined && hasContacted !== '') {
+    const contacted = hasContacted === 'true';
+    filtered = filtered.filter(t => t.hasContacted === contacted);
   }
 
   // 责任人筛选

@@ -61,19 +61,30 @@ export const COMPLAINT_LEVEL_CONFIG: Record<ComplaintLevel, {
   }
 };
 
-// 渠道类型配置（重构）
+// 渠道类型配置（7种）
 export const CHANNEL_TYPE_CONFIG = {
-  '保司渠道': { label: '保司渠道', color: 'blue' },
-  '支付渠道': { label: '支付渠道', color: 'cyan' },
+  '保司': { label: '保司', color: 'blue' },
+  '经纪': { label: '经纪', color: 'cyan' },
+  '支付': { label: '支付', color: 'green' },
+  '监管': { label: '监管', color: 'red' },
   '内部工单': { label: '内部工单', color: 'purple' },
   '客户反馈': { label: '客户反馈', color: 'orange' },
   '其它': { label: '其它', color: 'default' }
 };
 
-// 完结状态配置（新增冷处理）
+// 完结状态配置（处理完结弹窗3选项 + 旧选项）
 export const COMPLETION_STATUS = [
+  { value: '正常完结', label: '正常完结' },
+  { value: '冷处理', label: '冷处理' },
+  { value: '联系不上', label: '联系不上' },
   { value: '未取得有效联系', label: '未取得有效联系' },
   { value: '已达成一致', label: '已达成一致' },
-  { value: '诉求过高，无法达成一致', label: '诉求过高，无法达成一致' },
-  { value: '冷处理', label: '冷处理' }
+  { value: '诉求过高，无法达成一致', label: '诉求过高，无法达成一致' }
+];
+
+// 完结弹窗选项（仅3个核心选项）
+export const RESOLUTION_OPTIONS = [
+  { value: '正常完结', label: '正常完结', desc: '问题已解决，客户认可', color: 'green' },
+  { value: '冷处理', label: '冷处理', desc: '客户诉求超出权限，暂不处理', color: 'orange' },
+  { value: '联系不上', label: '联系不上', desc: '多次尝试均无法联系到客户', color: 'red' }
 ];
