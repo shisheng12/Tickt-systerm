@@ -31,7 +31,8 @@ import {
   CheckCircleOutlined,
   UserAddOutlined,
   CheckOutlined,
-  FileDoneOutlined
+  FileDoneOutlined,
+  EditOutlined
 } from '@ant-design/icons';
 import type { Ticket, TicketStatus, Attachment, ProcessLog, CompletionStatus } from '../types';
 import {
@@ -40,12 +41,14 @@ import {
   addComment,
   setNextContactTime,
   resolveTicket,
-  batchAssign
+  batchAssign,
+  updateTicket
 } from '../services/ticketService';
 import { getUsers } from '../services/roleService';
 import { useAuth } from '../hooks/usePermission';
 import { COMPLAINT_LEVEL_CONFIG, CHANNEL_TYPE_CONFIG, RESOLUTION_OPTIONS } from '../constants/complaintRules';
-import { TICKET_CATEGORIES, TICKET_STATUS } from '../constants/ticket';
+import { TICKET_CATEGORIES, TICKET_STATUS, PRIORITY_CONFIG, SOURCE_CONFIG, NUCLEAR_STATUS } from '../constants/ticket';
+import dayjs from 'dayjs';
 import './TicketDetailDrawer.css';
 
 const { TextArea } = Input;
@@ -98,6 +101,8 @@ export default function TicketProcessDrawer({
       setTicket(null);
       setComment('');
       setUploadedFiles([]);
+      setEditMode(false);
+      editForm.resetFields();
     }
   }, [open, ticketId]);
 
@@ -211,11 +216,65 @@ export default function TicketProcessDrawer({
     }
   };
 
+  // 编辑基础信息 - 进入编辑模式
+  const handleEditStart = () => {
+    if (!ticket) return;
+    editForm.setFieldsValue({
+      project: ticket.project,
+      brokerageEntity: ticket.brokerageEntity,
+      paymentChannel: ticket.paymentChannel,
+      internalOrderNumber: ticket.internalOrderNumber || '',
+      contactPhone: ticket.contactPhone || '',
+      nuclearBodyStatus: ticket.nuclearBodyStatus,
+      category: ticket.category,
+      complaintLevel: ticket.complaintLevel,
+      priority: ticket.priority,
+      source: ticket.source
+    });
+    setEditMode(true);
+  };
+
+  // 编辑基础信息 - 取消
+  const handleEditCancel = () => {
+    setEditMode(false);
+    editForm.resetFields();
+  };
+
+  // 编辑基础信息 - 保存
+  const handleEditSave = async () => {
+    if (!ticket) return;
+    try {
+      const values = await editForm.validateFields();
+      setProcessing(true);
+      await updateTicket(ticket.id, {
+        project: values.project,
+        brokerageEntity: values.brokerageEntity,
+        paymentChannel: values.paymentChannel,
+        internalOrderNumber: values.internalOrderNumber || undefined,
+        contactPhone: values.contactPhone || undefined,
+        nuclearBodyStatus: values.nuclearBodyStatus,
+        category: values.category,
+        complaintLevel: values.complaintLevel,
+        priority: values.priority,
+        source: values.source
+      });
+      message.success('基础信息已更新');
+      setEditMode(false);
+      loadData();
+      onUpdated?.();
+    } catch (error: any) {
+      if (error?.errorFields) return; // 表单校验失败
+      message.error(error.message || '保存失败');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const renderActionButton = () => {
     if (!ticket) return null;
 
     // 待处理：显示"开始处理"按钮
-    if (ticket.status === 'pending' || ticket.status === 'assigned') {
+    if (ticket.status === 'pending') {
       return (
         <Space>
           <Button
@@ -256,7 +315,7 @@ export default function TicketProcessDrawer({
     }
 
     // 处理中：显示"确认完结"按钮
-    if (ticket.status === 'processing' || ticket.status === 'pending_confirm') {
+    if (ticket.status === 'processing') {
       return (
         <Button
           type="primary"
@@ -269,7 +328,7 @@ export default function TicketProcessDrawer({
     }
 
     // 已完结：提示
-    if (ticket.status === 'resolved' || ticket.status === 'closed') {
+    if (ticket.status === 'completed') {
       return <Tag color="green" icon={<CheckCircleOutlined />}>工单已完结</Tag>;
     }
 
@@ -298,85 +357,216 @@ export default function TicketProcessDrawer({
     >
       {/* ====== 第一栏：基本信息 ====== */}
       <div className="info-section">
-        <div className="section-title">📋 基本信息</div>
-        <Descriptions column={2} size="small" bordered>
-          <Descriptions.Item label="工单号">{ticket.workOrderNumber}</Descriptions.Item>
-          <Descriptions.Item label="反馈时间">{dayjs(ticket.feedbackTime).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
-          <Descriptions.Item label="保司">{ticket.project}</Descriptions.Item>
-          <Descriptions.Item label="经纪主体">{ticket.brokerageEntity}</Descriptions.Item>
-          <Descriptions.Item label="支付渠道">{ticket.paymentChannel}</Descriptions.Item>
-          <Descriptions.Item label="内部订单号">{ticket.internalOrderNumber || '-'}</Descriptions.Item>
-          <Descriptions.Item label="保单号">{ticket.policyNumber}</Descriptions.Item>
-          <Descriptions.Item label="客户姓名">{ticket.customerName}</Descriptions.Item>
-          <Descriptions.Item label="客户电话">{ticket.phone}</Descriptions.Item>
-          <Descriptions.Item label="联系人电话">{ticket.contactPhone || '-'}</Descriptions.Item>
-          <Descriptions.Item label="保司侧核身">
-            <Tag color={ticket.nuclearBodyStatus === '是' ? 'green' : 'orange'}>
-              {ticket.nuclearBodyStatus}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="客户是否曾进线">
-            <Tag color={ticket.hasContacted ? 'blue' : 'default'}>
-              {ticket.hasContacted ? '是' : '否'}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="进线ID">{ticket.contactId || '-'}</Descriptions.Item>
-          <Descriptions.Item label="客户诉求" span={2}>{ticket.customerRequest}</Descriptions.Item>
-          <Descriptions.Item label="客诉类别">
-            <Tag>{ticket.category}</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="投诉等级">
-            <Tag color={COMPLAINT_LEVEL_CONFIG[ticket.complaintLevel]?.color}>
-              {ticket.complaintLevel}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="优先级">
-            <Tag color={
-              ticket.priority === 'urgent' ? 'red' :
-              ticket.priority === 'high' ? 'orange' :
-              ticket.priority === 'medium' ? 'blue' : 'default'
-            }>
-              {ticket.priority === 'urgent' ? '紧急' :
-               ticket.priority === 'high' ? '高' :
-               ticket.priority === 'medium' ? '中' : '低'}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="处理状态">
-            <Tag color={TICKET_STATUS[ticket.status]?.color}>
-              {TICKET_STATUS[ticket.status]?.text}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="来源">{ticket.source}</Descriptions.Item>
-          <Descriptions.Item label="反馈渠道">
-            <Tag color={CHANNEL_TYPE_CONFIG[ticket.channel]?.color}>
-              {ticket.channel}
-            </Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="用户投诉渠道">{ticket.userComplaintChannel}</Descriptions.Item>
-          <Descriptions.Item label="创建人">{ticket.creatorName}</Descriptions.Item>
-          <Descriptions.Item label="最近跟进人">{ticket.follower || '-'}</Descriptions.Item>
-          <Descriptions.Item label="联系次数">
-            <Tag color="blue">{ticket.contactCount} 次</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="下次联系时间">
-            {ticket.nextContactTime ? dayjs(ticket.nextContactTime).format('YYYY-MM-DD HH:mm') : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="处理结果" span={2}>
-            {ticket.processingResult || '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="完结时间">
-            {ticket.completionTime ? dayjs(ticket.completionTime).format('YYYY-MM-DD HH:mm') : '-'}
-          </Descriptions.Item>
-          <Descriptions.Item label="完结状态">
-            <Tag>{ticket.completionStatus || '-'}</Tag>
-          </Descriptions.Item>
-          <Descriptions.Item label="创建时间">
-            {dayjs(ticket.createdAt).format('YYYY-MM-DD HH:mm')}
-          </Descriptions.Item>
-          <Descriptions.Item label="更新时间">
-            {dayjs(ticket.updatedAt).format('YYYY-MM-DD HH:mm')}
-          </Descriptions.Item>
-        </Descriptions>
+        <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span>📋 基本信息</span>
+          {!editMode ? (
+            <Button size="small" icon={<EditOutlined />} onClick={handleEditStart}>
+              编辑基础信息
+            </Button>
+          ) : (
+            <Space size="small">
+              <Button size="small" onClick={handleEditCancel}>取消</Button>
+              <Button size="small" type="primary" loading={processing} onClick={handleEditSave}>
+                保存
+              </Button>
+            </Space>
+          )}
+        </div>
+        {editMode ? (
+          <Form form={editForm} layout="vertical" component={false}>
+            <Descriptions column={2} size="small" bordered>
+              <Descriptions.Item label="工单号">{ticket.workOrderNumber}</Descriptions.Item>
+              <Descriptions.Item label="反馈时间">{dayjs(ticket.feedbackTime).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+              <Descriptions.Item label="保司">
+                <Form.Item name="project" noStyle rules={[{ required: true, message: '请输入保司' }]}>
+                  <Input placeholder="如：融盛、平安" />
+                </Form.Item>
+              </Descriptions.Item>
+              <Descriptions.Item label="经纪主体">
+                <Form.Item name="brokerageEntity" noStyle rules={[{ required: true, message: '请输入经纪主体' }]}>
+                  <Input placeholder="如：东方大地" />
+                </Form.Item>
+              </Descriptions.Item>
+              <Descriptions.Item label="支付渠道">
+                <Form.Item name="paymentChannel" noStyle rules={[{ required: true, message: '请输入支付渠道' }]}>
+                  <Input placeholder="如：连连支付" />
+                </Form.Item>
+              </Descriptions.Item>
+              <Descriptions.Item label="内部订单号">
+                <Form.Item name="internalOrderNumber" noStyle>
+                  <Input placeholder="非必填" />
+                </Form.Item>
+              </Descriptions.Item>
+              <Descriptions.Item label="保单号">{ticket.policyNumber}</Descriptions.Item>
+              <Descriptions.Item label="客户姓名">{ticket.customerName}</Descriptions.Item>
+              <Descriptions.Item label="客户电话">{ticket.phone}</Descriptions.Item>
+              <Descriptions.Item label="联系人电话">
+                <Form.Item name="contactPhone" noStyle>
+                  <Input placeholder="非必填" />
+                </Form.Item>
+              </Descriptions.Item>
+              <Descriptions.Item label="保司侧核身">
+                <Form.Item name="nuclearBodyStatus" noStyle rules={[{ required: true, message: '请选择核身状态' }]}>
+                  <Select style={{ width: '100%' }} options={NUCLEAR_STATUS.map(s => ({ value: s.value, label: s.label }))} />
+                </Form.Item>
+              </Descriptions.Item>
+              <Descriptions.Item label="客户是否曾进线">
+                <Tag color={ticket.hasContacted ? 'blue' : 'default'}>
+                  {ticket.hasContacted ? '是' : '否'}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="进线ID">{ticket.contactId || '-'}</Descriptions.Item>
+              <Descriptions.Item label="客户诉求" span={2}>{ticket.customerRequest}</Descriptions.Item>
+              <Descriptions.Item label="客诉类别">
+                <Form.Item name="category" noStyle rules={[{ required: true, message: '请选择客诉类别' }]}>
+                  <Select
+                    showSearch
+                    style={{ width: '100%' }}
+                    optionFilterProp="label"
+                    options={TICKET_CATEGORIES.map(c => ({ value: c.value, label: c.label }))}
+                  />
+                </Form.Item>
+              </Descriptions.Item>
+              <Descriptions.Item label="投诉等级">
+                <Form.Item name="complaintLevel" noStyle rules={[{ required: true, message: '请选择投诉等级' }]}>
+                  <Select
+                    style={{ width: '100%' }}
+                    options={Object.entries(COMPLAINT_LEVEL_CONFIG).map(([k, v]) => ({ value: k, label: v.label }))}
+                  />
+                </Form.Item>
+              </Descriptions.Item>
+              <Descriptions.Item label="优先级">
+                <Form.Item name="priority" noStyle rules={[{ required: true, message: '请选择优先级' }]}>
+                  <Select
+                    style={{ width: '100%' }}
+                    options={Object.entries(PRIORITY_CONFIG).map(([k, v]) => ({ value: k, label: v.text }))}
+                  />
+                </Form.Item>
+              </Descriptions.Item>
+              <Descriptions.Item label="处理状态">
+                <Tag color={TICKET_STATUS[ticket.status]?.color}>
+                  {TICKET_STATUS[ticket.status]?.text}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="来源">
+                <Form.Item name="source" noStyle rules={[{ required: true, message: '请选择来源' }]}>
+                  <Select
+                    style={{ width: '100%' }}
+                    options={Object.entries(SOURCE_CONFIG).map(([k, v]) => ({ value: k, label: v.text }))}
+                  />
+                </Form.Item>
+              </Descriptions.Item>
+              <Descriptions.Item label="反馈渠道">
+                <Tag color={CHANNEL_TYPE_CONFIG[ticket.channel]?.color}>
+                  {ticket.channel}
+                </Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="用户投诉渠道">{ticket.userComplaintChannel}</Descriptions.Item>
+              <Descriptions.Item label="创建人">{ticket.creatorName}</Descriptions.Item>
+              <Descriptions.Item label="最近跟进人">{ticket.follower || '-'}</Descriptions.Item>
+              <Descriptions.Item label="联系次数">
+                <Tag color="blue">{ticket.contactCount} 次</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="下次联系时间">
+                {ticket.nextContactTime ? dayjs(ticket.nextContactTime).format('YYYY-MM-DD HH:mm') : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="处理结果" span={2}>
+                {ticket.processingResult || '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="完结时间">
+                {ticket.completionTime ? dayjs(ticket.completionTime).format('YYYY-MM-DD HH:mm') : '-'}
+              </Descriptions.Item>
+              <Descriptions.Item label="完结状态">
+                <Tag>{ticket.completionStatus || '-'}</Tag>
+              </Descriptions.Item>
+              <Descriptions.Item label="创建时间">
+                {dayjs(ticket.createdAt).format('YYYY-MM-DD HH:mm')}
+              </Descriptions.Item>
+              <Descriptions.Item label="更新时间">
+                {dayjs(ticket.updatedAt).format('YYYY-MM-DD HH:mm')}
+              </Descriptions.Item>
+            </Descriptions>
+          </Form>
+        ) : (
+          <Descriptions column={2} size="small" bordered>
+            <Descriptions.Item label="工单号">{ticket.workOrderNumber}</Descriptions.Item>
+            <Descriptions.Item label="反馈时间">{dayjs(ticket.feedbackTime).format('YYYY-MM-DD HH:mm')}</Descriptions.Item>
+            <Descriptions.Item label="保司">{ticket.project}</Descriptions.Item>
+            <Descriptions.Item label="经纪主体">{ticket.brokerageEntity}</Descriptions.Item>
+            <Descriptions.Item label="支付渠道">{ticket.paymentChannel}</Descriptions.Item>
+            <Descriptions.Item label="内部订单号">{ticket.internalOrderNumber || '-'}</Descriptions.Item>
+            <Descriptions.Item label="保单号">{ticket.policyNumber}</Descriptions.Item>
+            <Descriptions.Item label="客户姓名">{ticket.customerName}</Descriptions.Item>
+            <Descriptions.Item label="客户电话">{ticket.phone}</Descriptions.Item>
+            <Descriptions.Item label="联系人电话">{ticket.contactPhone || '-'}</Descriptions.Item>
+            <Descriptions.Item label="保司侧核身">
+              <Tag color={ticket.nuclearBodyStatus === '是' ? 'green' : 'orange'}>
+                {ticket.nuclearBodyStatus}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="客户是否曾进线">
+              <Tag color={ticket.hasContacted ? 'blue' : 'default'}>
+                {ticket.hasContacted ? '是' : '否'}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="进线ID">{ticket.contactId || '-'}</Descriptions.Item>
+            <Descriptions.Item label="客户诉求" span={2}>{ticket.customerRequest}</Descriptions.Item>
+            <Descriptions.Item label="客诉类别">
+              <Tag>{ticket.category}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="投诉等级">
+              <Tag color={COMPLAINT_LEVEL_CONFIG[ticket.complaintLevel]?.color}>
+                {ticket.complaintLevel}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="优先级">
+              <Tag color={
+                ticket.priority === 'urgent' ? 'red' :
+                ticket.priority === 'high' ? 'orange' :
+                ticket.priority === 'medium' ? 'blue' : 'default'
+              }>
+                {ticket.priority === 'urgent' ? '紧急' :
+                 ticket.priority === 'high' ? '高' :
+                 ticket.priority === 'medium' ? '中' : '低'}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="处理状态">
+              <Tag color={TICKET_STATUS[ticket.status]?.color}>
+                {TICKET_STATUS[ticket.status]?.text}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="来源">{ticket.source}</Descriptions.Item>
+            <Descriptions.Item label="反馈渠道">
+              <Tag color={CHANNEL_TYPE_CONFIG[ticket.channel]?.color}>
+                {ticket.channel}
+              </Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="用户投诉渠道">{ticket.userComplaintChannel}</Descriptions.Item>
+            <Descriptions.Item label="创建人">{ticket.creatorName}</Descriptions.Item>
+            <Descriptions.Item label="最近跟进人">{ticket.follower || '-'}</Descriptions.Item>
+            <Descriptions.Item label="联系次数">
+              <Tag color="blue">{ticket.contactCount} 次</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="下次联系时间">
+              {ticket.nextContactTime ? dayjs(ticket.nextContactTime).format('YYYY-MM-DD HH:mm') : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="处理结果" span={2}>
+              {ticket.processingResult || '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="完结时间">
+              {ticket.completionTime ? dayjs(ticket.completionTime).format('YYYY-MM-DD HH:mm') : '-'}
+            </Descriptions.Item>
+            <Descriptions.Item label="完结状态">
+              <Tag>{ticket.completionStatus || '-'}</Tag>
+            </Descriptions.Item>
+            <Descriptions.Item label="创建时间">
+              {dayjs(ticket.createdAt).format('YYYY-MM-DD HH:mm')}
+            </Descriptions.Item>
+            <Descriptions.Item label="更新时间">
+              {dayjs(ticket.updatedAt).format('YYYY-MM-DD HH:mm')}
+            </Descriptions.Item>
+          </Descriptions>
+        )}
       </div>
 
       <Divider />
@@ -391,7 +581,7 @@ export default function TicketProcessDrawer({
         </div>
 
         {/* 处理输入区（仅处理中显示） */}
-        {(ticket.status === 'processing' || ticket.status === 'pending_confirm' || ticket.status === 'assigned') && (
+        {ticket.status === 'processing' && (
           <div className="process-form">
             <div style={{ marginBottom: 12 }}>
               <div style={{ marginBottom: 6, color: '#666' }}>本次处理备注（每次提交 = 一次联系次数）：</div>

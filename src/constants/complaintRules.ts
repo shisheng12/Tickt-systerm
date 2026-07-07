@@ -61,15 +61,12 @@ export const COMPLAINT_LEVEL_CONFIG: Record<ComplaintLevel, {
   }
 };
 
-// 渠道类型配置（7种）
+// 渠道类型配置（4种）
 export const CHANNEL_TYPE_CONFIG = {
   '保司': { label: '保司', color: 'blue' },
   '经纪': { label: '经纪', color: 'cyan' },
   '支付': { label: '支付', color: 'green' },
-  '监管': { label: '监管', color: 'red' },
-  '内部工单': { label: '内部工单', color: 'purple' },
-  '客户反馈': { label: '客户反馈', color: 'orange' },
-  '其它': { label: '其它', color: 'default' }
+  '监管': { label: '监管', color: 'red' }
 };
 
 // 完结状态配置（处理完结弹窗3选项 + 旧选项）

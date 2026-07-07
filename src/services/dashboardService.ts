@@ -90,17 +90,13 @@ export async function getDashboardStats(query: DashboardQuery = {}): Promise<Das
 
   // 8个核心指标
   const pending = tickets.filter(t => t.status === 'pending').length;
-  const processing = tickets.filter(
-    t => t.status === 'processing' || t.status === 'assigned' || t.status === 'pending_confirm'
-  ).length;
-  const resolved = tickets.filter(
-    t => t.status === 'resolved' || t.status === 'closed'
-  ).length;
+  const processing = tickets.filter(t => t.status === 'processing').length;
+  const resolved = tickets.filter(t => t.status === 'completed').length;
 
   // 2小时超时预警：dueAt 在 0-2小时之间
   const pendingTimeout = tickets.filter(t => {
     if (!t.dueAt) return false;
-    if (t.status === 'resolved' || t.status === 'closed') return false;
+    if (t.status === 'completed') return false;
     const due = dayjs(t.dueAt);
     return due.isAfter(now) && due.isBefore(inTwoHours);
   }).length;
@@ -108,7 +104,7 @@ export async function getDashboardStats(query: DashboardQuery = {}): Promise<Das
   // 已超时：dueAt 已过且未完结
   const overdue = tickets.filter(t => {
     if (!t.dueAt) return false;
-    if (t.status === 'resolved' || t.status === 'closed') return false;
+    if (t.status === 'completed') return false;
     return dayjs(t.dueAt).isBefore(now);
   }).length;
 
@@ -129,9 +125,9 @@ export async function getDashboardStats(query: DashboardQuery = {}): Promise<Das
     supervision
   };
 
-  // 渠道统计（7个渠道）
+  // 渠道统计（4个渠道）
   const channelMap = new Map<ChannelType, ChannelStats>();
-  const allChannels: ChannelType[] = ['保司', '经纪', '支付', '监管', '内部工单', '客户反馈', '其它'];
+  const allChannels: ChannelType[] = ['保司', '经纪', '支付', '监管'];
 
   allChannels.forEach(ch => {
     const list = tickets.filter(t => t.channel === ch);
@@ -139,16 +135,16 @@ export async function getDashboardStats(query: DashboardQuery = {}): Promise<Das
       channel: ch,
       total: list.length,
       pending: list.filter(t => t.status === 'pending').length,
-      processing: list.filter(t => t.status === 'processing' || t.status === 'assigned').length,
+      processing: list.filter(t => t.status === 'processing').length,
       pendingTimeout: list.filter(t => {
         if (!t.dueAt) return false;
-        if (t.status === 'resolved' || t.status === 'closed') return false;
+        if (t.status === 'completed') return false;
         const due = dayjs(t.dueAt);
         return due.isAfter(now) && due.isBefore(inTwoHours);
       }).length,
       overdue: list.filter(t => {
         if (!t.dueAt) return false;
-        if (t.status === 'resolved' || t.status === 'closed') return false;
+        if (t.status === 'completed') return false;
         return dayjs(t.dueAt).isBefore(now);
       }).length
     });
@@ -165,8 +161,8 @@ export async function getDashboardStats(query: DashboardQuery = {}): Promise<Das
     }
     const s = assigneeMap.get(userId)!;
     s.created++;
-    if (t.status === 'resolved' || t.status === 'closed') s.resolved++;
-    if (t.dueAt && dayjs(t.dueAt).isBefore(now) && t.status !== 'resolved' && t.status !== 'closed') {
+    if (t.status === 'completed') s.resolved++;
+    if (t.dueAt && dayjs(t.dueAt).isBefore(now) && t.status !== 'completed') {
       s.overdue++;
     }
   });

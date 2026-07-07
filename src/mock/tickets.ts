@@ -24,8 +24,8 @@ const categories = [
   '其他'
 ];
 
-// 7种渠道类型（含监管）
-const channels: ChannelType[] = ['保司', '经纪', '支付', '监管', '内部工单', '客户反馈', '其它'];
+// 4种渠道类型
+const channels: ChannelType[] = ['保司', '经纪', '支付', '监管'];
 
 const customerRequests = [
   '要求退保并退还全部保费',
@@ -41,7 +41,7 @@ const customerRequests = [
 ];
 
 const priorities: Array<'low' | 'medium' | 'high' | 'urgent'> = ['low', 'medium', 'high', 'urgent'];
-const statuses: Array<Ticket['status']> = ['pending', 'assigned', 'processing', 'pending_confirm', 'resolved', 'closed', 'reopened'];
+const statuses: Array<Ticket['status']> = ['pending', 'processing', 'pending_timeout', 'overdue', 'completed'];
 const sources: Array<Ticket['source']> = ['feishu_form', 'manual', 'community'];
 const completionStatuses = ['正常完结', '冷处理', '联系不上', ''];
 const complaintLevels: ComplaintLevel[] = ['一般工单', '紧急工单', '加急工单', '特急工单'];
@@ -100,7 +100,7 @@ function generateTicket(index: number): Ticket {
   const feedbackTime = randomDate(daysAgo);
   const createdAt = randomDate(daysAgo);
   const status = randomItem(statuses);
-  const assigneeId = status === 'pending' ? null : randomItem(userIds);
+  const assigneeId = status === 'pending' || status === 'pending_timeout' || status === 'overdue' ? null : randomItem(userIds);
   const priority = randomItem(priorities);
   const source = randomItem(sources);
   const complaintLevel = randomItem(complaintLevels);
@@ -123,7 +123,7 @@ function generateTicket(index: number): Ticket {
   }
 
   let resolvedAt: string | null = null;
-  if (status === 'resolved' || status === 'closed') {
+  if (status === 'completed') {
     resolvedAt = new Date(createdDate.getTime() + Math.random() * 5 * 24 * 60 * 60 * 1000).toISOString();
     completionTime = resolvedAt;
   }
@@ -131,7 +131,7 @@ function generateTicket(index: number): Ticket {
   const contactCount = status === 'pending' ? 0 : Math.floor(Math.random() * 5) + 1;
 
   let nextContactTime: string | null = null;
-  if (status !== 'resolved' && status !== 'closed' && Math.random() < 0.5) {
+  if (status !== 'completed' && Math.random() < 0.5) {
     nextContactTime = new Date(Date.now() + Math.random() * 3 * 24 * 60 * 60 * 1000).toISOString();
   }
 
@@ -176,7 +176,7 @@ function generateTicket(index: number): Ticket {
     contactCount,
     nextContactTime,
     completionTime,
-    completionStatus: (status === 'resolved' || status === 'closed') ? randomItem(completionStatuses) : '',
+    completionStatus: status === 'completed' ? randomItem(completionStatuses) : '',
     follower: contactCount > 0 ? randomItem(followers) : '',
     creator: isExternal ? '外部' : creator,
     creatorName: isExternal ? '外部用户' : creator,

@@ -1,4 +1,4 @@
-// 角色管理页面 - 角色CRUD、权限配置
+// 角色管理页面 - 角色CRUD + 权限编辑 + 成员展示
 import { useState, useEffect } from 'react';
 import {
   Card,
@@ -6,26 +6,40 @@ import {
   Button,
   Space,
   Modal,
+  Drawer,
   Form,
   Input,
   message,
   Popconfirm,
   Tag,
-  Tree,
-  Tabs,
-  Divider
+  Checkbox,
+  Spin,
+  Tooltip,
+  Avatar,
+  Empty
 } from 'antd';
 import {
   PlusOutlined,
   EditOutlined,
   DeleteOutlined,
   SafetyOutlined,
-  ReloadOutlined
+  ReloadOutlined,
+  TeamOutlined,
+  SaveOutlined,
+  UserOutlined
 } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
-import type { Role, Permission } from '../types';
-import { getRoles, createRole, updateRole, deleteRole, updateRolePermissions } from '../services/roleService';
-import { PERMISSION_DEFS, PERMISSION_GROUPS } from '../constants/permission';
+import type { Role, User, Permission } from '../types';
+import {
+  getRoles,
+  getUsers,
+  createRole,
+  updateRole,
+  deleteRole,
+  updateRolePermissions
+} from '../services/roleService';
+import { PERMISSION_DEFS, PERMISSION_GROUPS, PERMISSION_TYPE_LABELS } from '../constants/permission';
+import type { PermissionType } from '../constants/permission';
 import './RoleManage.css';
 
 interface RoleFormData {
@@ -34,8 +48,20 @@ interface RoleFormData {
   level: number;
 }
 
+// 权限分组（按功能模块）
+interface PermissionGroup {
+  key: string;
+  label: string;
+  permissions: {
+    page: typeof PERMISSION_DEFS;
+    data: typeof PERMISSION_DEFS;
+    action: typeof PERMISSION_DEFS;
+  };
+}
+
 export default function RoleManage() {
   const [roles, setRoles] = useState<Role[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
 
   // 新增/编辑角色弹窗
@@ -43,22 +69,29 @@ export default function RoleManage() {
   const [editingRole, setEditingRole] = useState<Role | null>(null);
   const [form] = Form.useForm<RoleFormData>();
 
-  // 权限配置弹窗
-  const [permModalVisible, setPermModalVisible] = useState(false);
-  const [configuringRole, setConfiguringRole] = useState<Role | null>(null);
-  const [selectedPermissions, setSelectedPermissions] = useState<Permission[]>([]);
+  // 权限编辑抽屉
+  const [permDrawerVisible, setPermDrawerVisible] = useState(false);
+  const [editingPermRole, setEditingPermRole] = useState<Role | null>(null);
+  const [permSet, setPermSet] = useState<Set<Permission>>(new Set());
+  const [permDirty, setPermDirty] = useState(false);
+  const [permSaving, setPermSaving] = useState(false);
+
+  // 成员展示抽屉
+  const [memberDrawerVisible, setMemberDrawerVisible] = useState(false);
+  const [viewingMemberRole, setViewingMemberRole] = useState<Role | null>(null);
 
   useEffect(() => {
-    loadRoles();
+    loadData();
   }, []);
 
-  const loadRoles = async () => {
+  const loadData = async () => {
     setLoading(true);
     try {
-      const data = await getRoles();
-      setRoles(data);
+      const [rolesData, usersData] = await Promise.all([getRoles(), getUsers()]);
+      setRoles(rolesData);
+      setUsers(usersData);
     } catch (error: any) {
-      message.error(error.message || '加载角色失败');
+      message.error(error.message || '加载失败');
     } finally {
       setLoading(false);
     }
@@ -100,7 +133,7 @@ export default function RoleManage() {
 
       setModalVisible(false);
       form.resetFields();
-      loadRoles();
+      loadData();
     } catch (error: any) {
       if (error.errorFields) return;
       message.error(error.message || '操作失败');
@@ -112,48 +145,81 @@ export default function RoleManage() {
     try {
       await deleteRole(roleId);
       message.success('角色删除成功');
-      loadRoles();
+      loadData();
     } catch (error: any) {
       message.error(error.message || '删除失败');
     }
   };
 
-  // 打开权限配置弹窗
-  const handleConfigPermissions = (role: Role) => {
-    setConfiguringRole(role);
-    setSelectedPermissions([...role.permissions]);
-    setPermModalVisible(true);
+  // 打开权限编辑抽屉
+  const handleEditPermissions = (role: Role) => {
+    setEditingPermRole(role);
+    setPermSet(new Set(role.permissions));
+    setPermDirty(false);
+    setPermDrawerVisible(true);
   };
 
-  // 保存权限配置
-  const handleSavePermissions = async () => {
-    if (!configuringRole) return;
+  // 切换权限
+  const togglePermission = (permKey: Permission, checked: boolean) => {
+    setPermSet(prev => {
+      const next = new Set(prev);
+      if (checked) {
+        next.add(permKey);
+      } else {
+        next.delete(permKey);
+      }
+      return next;
+    });
+    setPermDirty(true);
+  };
 
+  // 保存权限
+  const handleSavePermissions = async () => {
+    if (!editingPermRole) return;
+
+    setPermSaving(true);
     try {
-      await updateRolePermissions(configuringRole.id, selectedPermissions);
-      message.success('权限配置保存成功');
-      setPermModalVisible(false);
-      loadRoles();
+      const newPerms = Array.from(permSet);
+      await updateRolePermissions(editingPermRole.id, newPerms);
+      message.success('权限已保存');
+      setPermDrawerVisible(false);
+      loadData();
     } catch (error: any) {
       message.error(error.message || '保存失败');
+    } finally {
+      setPermSaving(false);
     }
   };
 
-  // 构建权限树数据
-  const buildPermissionTree = () => {
-    return Object.entries(PERMISSION_GROUPS).map(([groupKey, groupName]) => ({
-      title: groupName,
-      key: groupKey,
-      children: Object.entries(PERMISSION_DEFS)
-        .filter(([key]) => key.startsWith(groupKey))
-        .map(([key, def]) => ({
-          title: `${def.label} - ${def.desc}`,
-          key,
-        }))
-    }));
+  // 打开成员展示抽屉
+  const handleViewMembers = (role: Role) => {
+    setViewingMemberRole(role);
+    setMemberDrawerVisible(true);
   };
 
-  const columns: ColumnsType<Role> = [
+  // 每个角色的成员数量统计
+  const getRoleMemberCount = (roleId: string) => users.filter(u => u.roleId === roleId).length;
+
+  // 获取角色成员列表
+  const getRoleMembers = (roleId: string) => users.filter(u => u.roleId === roleId);
+
+  // 按分组组织权限
+  const permissionGroups: PermissionGroup[] = PERMISSION_GROUPS.map(group => ({
+    key: group.key,
+    label: group.label,
+    permissions: {
+      page: PERMISSION_DEFS.filter(p => p.group === group.key && p.type === 'page'),
+      data: PERMISSION_DEFS.filter(p => p.group === group.key && p.type === 'data'),
+      action: PERMISSION_DEFS.filter(p => p.group === group.key && p.type === 'action')
+    }
+  })).filter(group =>
+    group.permissions.page.length > 0 ||
+    group.permissions.data.length > 0 ||
+    group.permissions.action.length > 0
+  );
+
+  // 角色列表表格列
+  const roleColumns: ColumnsType<Role> = [
     {
       title: '角色名称',
       dataIndex: 'name',
@@ -194,23 +260,23 @@ export default function RoleManage() {
       key: 'memberCount',
       width: 100,
       align: 'center',
-      render: () => <Tag>0 人</Tag> // TODO: 统计成员数量
+      render: (_, record) => (
+        <Button
+          type="link"
+          size="small"
+          onClick={() => handleViewMembers(record)}
+        >
+          {getRoleMemberCount(record.id)} 人
+        </Button>
+      )
     },
     {
       title: '操作',
       key: 'action',
-      width: 250,
+      width: 220,
       fixed: 'right',
       render: (_, record) => (
         <Space size="small">
-          <Button
-            type="link"
-            size="small"
-            icon={<SafetyOutlined />}
-            onClick={() => handleConfigPermissions(record)}
-          >
-            配置权限
-          </Button>
           <Button
             type="link"
             size="small"
@@ -218,6 +284,14 @@ export default function RoleManage() {
             onClick={() => handleEdit(record)}
           >
             编辑
+          </Button>
+          <Button
+            type="link"
+            size="small"
+            icon={<SafetyOutlined />}
+            onClick={() => handleEditPermissions(record)}
+          >
+            编辑权限
           </Button>
           <Popconfirm
             title="确认删除？"
@@ -251,26 +325,27 @@ export default function RoleManage() {
         }
         extra={
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={loadRoles}>
-              刷新
-            </Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={handleCreate}>
               新增角色
+            </Button>
+            <Button icon={<ReloadOutlined />} onClick={loadData}>
+              刷新
             </Button>
           </Space>
         }
       >
-        <Table
-          columns={columns}
-          dataSource={roles}
-          rowKey="id"
-          loading={loading}
-          pagination={{
-            showSizeChanger: true,
-            showQuickJumper: true,
-            showTotal: (total) => `共 ${total} 个角色`
-          }}
-        />
+        <Spin spinning={loading}>
+          <Table
+            columns={roleColumns}
+            dataSource={roles}
+            rowKey="id"
+            pagination={{
+              showSizeChanger: true,
+              showQuickJumper: true,
+              showTotal: (total) => `共 ${total} 个角色`
+            }}
+          />
+        </Spin>
       </Card>
 
       {/* 新增/编辑角色弹窗 */}
@@ -323,30 +398,252 @@ export default function RoleManage() {
         </Form>
       </Modal>
 
-      {/* 权限配置弹窗 */}
-      <Modal
-        title={`配置权限 - ${configuringRole?.name}`}
-        open={permModalVisible}
-        onOk={handleSavePermissions}
-        onCancel={() => setPermModalVisible(false)}
-        width={700}
-        okText="保存"
-        cancelText="取消"
+      {/* 权限编辑抽屉 */}
+      <Drawer
+        title={
+          <Space>
+            <SafetyOutlined />
+            <span>编辑权限 - {editingPermRole?.name}</span>
+          </Space>
+        }
+        width={720}
+        open={permDrawerVisible}
+        onClose={() => {
+          if (permDirty) {
+            Modal.confirm({
+              title: '有未保存的更改',
+              content: '确定要关闭吗？未保存的更改将丢失。',
+              okText: '确定关闭',
+              cancelText: '继续编辑',
+              onOk: () => {
+                setPermDrawerVisible(false);
+                setPermDirty(false);
+              }
+            });
+          } else {
+            setPermDrawerVisible(false);
+          }
+        }}
+        footer={
+          <div style={{ textAlign: 'right' }}>
+            <Space>
+              {permDirty && <Tag color="orange">有未保存的更改</Tag>}
+              <Button onClick={() => setPermDrawerVisible(false)}>
+                取消
+              </Button>
+              <Button
+                type="primary"
+                icon={<SaveOutlined />}
+                loading={permSaving}
+                disabled={!permDirty}
+                onClick={handleSavePermissions}
+              >
+                保存权限
+              </Button>
+            </Space>
+          </div>
+        }
+      >
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ color: '#666', marginBottom: 12, fontSize: 14 }}>
+            已选择 {permSet.size} 个权限点，按功能模块分组，每组包含页面、数据、操作三类权限
+          </div>
+          <div>
+            {permissionGroups.map(group => {
+              const hasPermissions =
+                group.permissions.page.length > 0 ||
+                group.permissions.data.length > 0 ||
+                group.permissions.action.length > 0;
+
+              if (!hasPermissions) return null;
+
+              return (
+                <div key={group.key} style={{ marginBottom: 32 }}>
+                  <div style={{
+                    fontWeight: 600,
+                    fontSize: 16,
+                    marginBottom: 16,
+                    paddingBottom: 8,
+                    borderBottom: '2px solid #1890ff',
+                    color: '#1890ff'
+                  }}>
+                    {group.label}
+                  </div>
+
+                  {/* 页面权限 */}
+                  {group.permissions.page.length > 0 && (
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{
+                        fontSize: 14,
+                        fontWeight: 500,
+                        marginBottom: 8,
+                        color: '#52c41a'
+                      }}>
+                        <Tag color="green" style={{ marginRight: 8 }}>页面权限</Tag>
+                        控制能否访问该模块页面
+                      </div>
+                      <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                        {group.permissions.page.map(perm => (
+                          <div key={perm.key} style={{
+                            padding: '10px 12px',
+                            background: permSet.has(perm.key) ? '#f6ffed' : '#fafafa',
+                            borderRadius: 6,
+                            border: `1px solid ${permSet.has(perm.key) ? '#b7eb8f' : '#d9d9d9'}`,
+                            transition: 'all 0.3s'
+                          }}>
+                            <Checkbox
+                              checked={permSet.has(perm.key)}
+                              onChange={e => togglePermission(perm.key, e.target.checked)}
+                            >
+                              <div>
+                                <div style={{ fontWeight: 500, fontSize: 14 }}>{perm.label}</div>
+                                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+                                  {perm.desc}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#bbb', marginTop: 2 }}>
+                                  {perm.key}
+                                </div>
+                              </div>
+                            </Checkbox>
+                          </div>
+                        ))}
+                      </Space>
+                    </div>
+                  )}
+
+                  {/* 数据权限 */}
+                  {group.permissions.data.length > 0 && (
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{
+                        fontSize: 14,
+                        fontWeight: 500,
+                        marginBottom: 8,
+                        color: '#1890ff'
+                      }}>
+                        <Tag color="blue" style={{ marginRight: 8 }}>数据权限</Tag>
+                        控制能查看哪些数据范围
+                      </div>
+                      <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                        {group.permissions.data.map(perm => (
+                          <div key={perm.key} style={{
+                            padding: '10px 12px',
+                            background: permSet.has(perm.key) ? '#e6f7ff' : '#fafafa',
+                            borderRadius: 6,
+                            border: `1px solid ${permSet.has(perm.key) ? '#91d5ff' : '#d9d9d9'}`,
+                            transition: 'all 0.3s'
+                          }}>
+                            <Checkbox
+                              checked={permSet.has(perm.key)}
+                              onChange={e => togglePermission(perm.key, e.target.checked)}
+                            >
+                              <div>
+                                <div style={{ fontWeight: 500, fontSize: 14 }}>{perm.label}</div>
+                                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+                                  {perm.desc}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#bbb', marginTop: 2 }}>
+                                  {perm.key}
+                                </div>
+                              </div>
+                            </Checkbox>
+                          </div>
+                        ))}
+                      </Space>
+                    </div>
+                  )}
+
+                  {/* 操作权限 */}
+                  {group.permissions.action.length > 0 && (
+                    <div style={{ marginBottom: 20 }}>
+                      <div style={{
+                        fontSize: 14,
+                        fontWeight: 500,
+                        marginBottom: 8,
+                        color: '#fa8c16'
+                      }}>
+                        <Tag color="orange" style={{ marginRight: 8 }}>操作权限</Tag>
+                        控制能使用哪些操作按钮
+                      </div>
+                      <Space direction="vertical" style={{ width: '100%' }} size={8}>
+                        {group.permissions.action.map(perm => (
+                          <div key={perm.key} style={{
+                            padding: '10px 12px',
+                            background: permSet.has(perm.key) ? '#fff7e6' : '#fafafa',
+                            borderRadius: 6,
+                            border: `1px solid ${permSet.has(perm.key) ? '#ffd591' : '#d9d9d9'}`,
+                            transition: 'all 0.3s'
+                          }}>
+                            <Checkbox
+                              checked={permSet.has(perm.key)}
+                              onChange={e => togglePermission(perm.key, e.target.checked)}
+                            >
+                              <div>
+                                <div style={{ fontWeight: 500, fontSize: 14 }}>{perm.label}</div>
+                                <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>
+                                  {perm.desc}
+                                </div>
+                                <div style={{ fontSize: 11, color: '#bbb', marginTop: 2 }}>
+                                  {perm.key}
+                                </div>
+                              </div>
+                            </Checkbox>
+                          </div>
+                        ))}
+                      </Space>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </Drawer>
+
+      {/* 成员展示抽屉 */}
+      <Drawer
+        title={
+          <Space>
+            <TeamOutlined />
+            <span>成员列表 - {viewingMemberRole?.name}</span>
+          </Space>
+        }
+        width={600}
+        open={memberDrawerVisible}
+        onClose={() => setMemberDrawerVisible(false)}
       >
         <div style={{ marginBottom: 16, color: '#666' }}>
-          当前已选择 <Tag color="blue">{selectedPermissions.length}</Tag> 个权限
+          该角色共有 {viewingMemberRole ? getRoleMemberCount(viewingMemberRole.id) : 0} 名成员。
+          成员管理操作请前往用户列表页面。
         </div>
 
-        <Tree
-          checkable
-          defaultExpandAll
-          treeData={buildPermissionTree()}
-          checkedKeys={selectedPermissions}
-          onCheck={(checked) => {
-            setSelectedPermissions(checked as Permission[]);
-          }}
-        />
-      </Modal>
+        {viewingMemberRole && getRoleMembers(viewingMemberRole.id).length > 0 ? (
+          <Space direction="vertical" style={{ width: '100%' }} size={12}>
+            {getRoleMembers(viewingMemberRole.id).map(user => (
+              <div
+                key={user.id}
+                style={{
+                  padding: 16,
+                  background: '#fafafa',
+                  borderRadius: 6,
+                  border: '1px solid #f0f0f0'
+                }}
+              >
+                <Space>
+                  <Avatar icon={<UserOutlined />} />
+                  <div>
+                    <div style={{ fontWeight: 500 }}>{user.name}</div>
+                    <div style={{ fontSize: 12, color: '#999' }}>
+                      {user.email} · {user.team}
+                    </div>
+                  </div>
+                </Space>
+              </div>
+            ))}
+          </Space>
+        ) : (
+          <Empty description="该角色暂无成员" />
+        )}
+      </Drawer>
     </div>
   );
 }

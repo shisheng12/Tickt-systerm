@@ -37,7 +37,7 @@ async function deriveNotifications(userId: string): Promise<AppNotification[]> {
   tickets.forEach(ticket => {
     // 仅对当前用户负责的、未完结的工单生成预警
     if (ticket.assigneeId !== userId) return;
-    if (ticket.status === 'resolved' || ticket.status === 'closed') return;
+    if (ticket.status === 'completed') return;
     if (!ticket.dueAt) return;
 
     const due = dayjs(ticket.dueAt);

@@ -3,7 +3,6 @@ import Layout from '../components/Layout';
 import Login from '../pages/Login';
 import Dashboard from '../pages/Dashboard';
 import TicketList from '../pages/TicketList';
-import PermissionManage from '../pages/PermissionManage';
 import RoleManage from '../pages/RoleManage';
 import UserManage from '../pages/UserManage';
 import ScheduleManage from '../pages/ScheduleManage';
@@ -40,10 +39,6 @@ const router = createBrowserRouter([
       {
         path: 'admin/users',
         element: <UserManage />
-      },
-      {
-        path: 'admin/permissions',
-        element: <PermissionManage />
       },
       {
         path: 'admin/schedules',

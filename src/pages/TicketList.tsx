@@ -231,7 +231,7 @@ export default function TicketList() {
       feedbackTime: dayjs(),
       nuclearBodyStatus: '否',
       source: 'manual',
-      channel: '客户反馈',
+      channel: '保司',
       priority: 'medium',
       complaintLevel: '一般工单',
       followUpFrequency: '至少3天1次',
@@ -406,8 +406,6 @@ export default function TicketList() {
                       {val.text}
                     </Select.Option>
                   ))}
-                  <Select.Option value="pending_timeout">待超时（2小时）</Select.Option>
-                  <Select.Option value="overdue">已超时</Select.Option>
                 </Select>
               </Col>
               <Col xs={24} sm={12} md={4}>

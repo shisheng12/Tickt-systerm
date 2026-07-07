@@ -34,15 +34,13 @@ export const COMPLETION_STATUS = [
   { value: '无效工单', label: '无效工单', color: '#999' }
 ];
 
-// 工单状态配置
+// 工单状态配置（核心5状态）
 export const TICKET_STATUS = {
   pending: { text: '待处理', color: 'default' },
-  assigned: { text: '已分配', color: 'blue' },
   processing: { text: '处理中', color: 'orange' },
-  pending_confirm: { text: '待确认', color: 'purple' },
-  resolved: { text: '已解决', color: 'green' },
-  closed: { text: '已关闭', color: 'default' },
-  reopened: { text: '重新打开', color: 'red' }
+  pending_timeout: { text: '待超时（2小时）', color: 'gold' },
+  overdue: { text: '已超时', color: 'red' },
+  completed: { text: '已完成', color: 'green' }
 } as const;
 
 // 优先级配置

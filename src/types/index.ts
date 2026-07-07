@@ -6,22 +6,19 @@ export type TicketSource = 'feishu_form' | 'manual' | 'community';
 // 优先级
 export type Priority = 'low' | 'medium' | 'high' | 'urgent';
 
-// 工单处理状态（核心6状态 + 2个虚拟状态）
+// 工单处理状态（核心5状态）
 export type TicketStatus =
   | 'pending'           // 待处理
-  | 'assigned'          // 已分配
   | 'processing'        // 处理中
-  | 'pending_confirm'   // 待确认
-  | 'resolved'          // 已解决
-  | 'closed'            // 已关闭
-  | 'reopened'          // 重新打开
-  | 'pending_timeout';  // 虚拟状态：待超时（2小时内）
+  | 'pending_timeout'   // 待超时（2小时）
+  | 'overdue'           // 已超时
+  | 'completed';        // 已完成
 
 // Dashboard筛选用的状态枚举（含虚拟状态）
 export type DashboardStatusFilter =
   | 'pending'
   | 'processing'
-  | 'resolved'
+  | 'completed'
   | 'pending_timeout'
   | 'overdue';
 
@@ -37,15 +34,12 @@ export type CompletionStatus =
 // 班次类型
 export type ShiftType = 'day' | 'mid' | 'night';
 
-// 渠道类型（5种）
+// 渠道类型（4种）
 export type ChannelType =
   | '保司'        // 保司渠道
   | '经纪'        // 经纪主体
   | '支付'        // 支付渠道
-  | '监管'        // 监管渠道
-  | '内部工单'
-  | '客户反馈'
-  | '其它';
+  | '监管';       // 监管渠道
 
 // 导出文件格式
 export type ExportFormat = 'xlsx' | 'csv' | 'pdf';

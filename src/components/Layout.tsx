@@ -74,10 +74,6 @@ export default function MainLayout() {
         key: '/admin/users',
         label: '用户管理'
       });
-      adminSubItems.push({
-        key: '/admin/permissions',
-        label: '权限配置'
-      });
     }
 
     if (canManageSchedules) {

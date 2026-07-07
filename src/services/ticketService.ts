@@ -84,24 +84,22 @@ export async function queryTickets(params: TicketQueryParams = {}): Promise<Pagi
     if (status === 'pending_timeout') {
       filtered = filtered.filter(t => {
         if (!t.dueAt) return false;
-        if (t.status === 'resolved' || t.status === 'closed') return false;
+        if (t.status === 'completed') return false;
         const due = new Date(t.dueAt);
         return due > now && due < inTwoHours;
       });
     } else if (status === 'overdue') {
       filtered = filtered.filter(t => {
         if (!t.dueAt) return false;
-        if (t.status === 'resolved' || t.status === 'closed') return false;
+        if (t.status === 'completed') return false;
         return new Date(t.dueAt) < now;
       });
     } else if (status === 'processing') {
-      // 处理中：包含 processing、assigned、pending_confirm
-      filtered = filtered.filter(t =>
-        t.status === 'processing' || t.status === 'assigned' || t.status === 'pending_confirm'
-      );
-    } else if (status === 'resolved') {
-      // 已完结：包含 resolved 和 closed
-      filtered = filtered.filter(t => t.status === 'resolved' || t.status === 'closed');
+      // 处理中：包含 processing
+      filtered = filtered.filter(t => t.status === 'processing');
+    } else if (status === 'completed') {
+      // 已完结：包含 completed
+      filtered = filtered.filter(t => t.status === 'completed');
     } else {
       filtered = filtered.filter(t => t.status === status);
     }
@@ -235,7 +233,7 @@ export async function createTicket(ticketData: Partial<Ticket>): Promise<Ticket>
     completionStatus: '',
     follower: '',
     source: ticketData.source || 'manual',
-    channel: ticketData.channel || '客户反馈',
+    channel: ticketData.channel || '保司',
     priority: ticketData.priority || 'medium',
     status: 'pending',
     createdAt: now,
@@ -302,9 +300,9 @@ export async function assignTicket(id: string, assigneeId: string, remark: strin
   ticket.assigneeId = assigneeId;
   ticket.updatedAt = now;
 
-  // 如果当前是 pending 状态，自动变更为 assigned
+  // 如果当前是 pending 状态，自动变更为 processing
   if (ticket.status === 'pending') {
-    ticket.status = 'assigned';
+    ticket.status = 'processing';
   }
 
   // 添加处理记录
@@ -313,7 +311,7 @@ export async function assignTicket(id: string, assigneeId: string, remark: strin
     operatorId: currentUser.user.id,
     action: 'assign',
     from: ticket.status,
-    to: 'assigned',
+    to: 'processing',
     remark: remark || `分配给责任人`,
     at: now
   });
@@ -354,15 +352,13 @@ export async function changeTicketStatus(
     throw new Error('无权限处理此工单');
   }
 
-  // 状态流转校验（根据文档第5节）
+  // 状态流转校验（核心5状态）
   const validTransitions: Record<TicketStatus, TicketStatus[]> = {
-    pending: ['assigned'],
-    assigned: ['processing'],
-    processing: ['pending_confirm', 'resolved'],
-    pending_confirm: ['resolved'],
-    resolved: ['closed', 'reopened'],
-    closed: ['reopened'],
-    reopened: ['processing']
+    pending: ['processing', 'pending_timeout', 'overdue', 'completed'],
+    processing: ['pending_timeout', 'overdue', 'completed'],
+    pending_timeout: ['processing', 'overdue', 'completed'],
+    overdue: ['processing', 'completed'],
+    completed: []
   };
 
   if (!validTransitions[ticket.status]?.includes(newStatus)) {
@@ -374,8 +370,8 @@ export async function changeTicketStatus(
   ticket.status = newStatus;
   ticket.updatedAt = now;
 
-  // 如果是已解决或已关闭，记录解决时间
-  if ((newStatus === 'resolved' || newStatus === 'closed') && !ticket.resolvedAt) {
+  // 如果是已完成，记录解决时间
+  if (newStatus === 'completed' && !ticket.resolvedAt) {
     ticket.resolvedAt = now;
   }
 
@@ -496,8 +492,8 @@ export async function addComment(
   // 更新跟进人为当前操作人
   ticket.follower = currentUser.user.name;
 
-  // 如果当前是 pending/assigned 状态，自动转为 processing
-  if (ticket.status === 'pending' || ticket.status === 'assigned') {
+  // 如果当前是 pending 状态，自动转为 processing
+  if (ticket.status === 'pending') {
     ticket.status = 'processing';
   }
 
@@ -529,7 +525,7 @@ export async function batchAssign(ticketIds: string[], assigneeId: string): Prom
     ticket.assigneeId = assigneeId;
     ticket.updatedAt = now;
     if (ticket.status === 'pending') {
-      ticket.status = 'assigned';
+      ticket.status = 'processing';
     }
 
     // 添加处理记录
@@ -580,7 +576,7 @@ export async function resolveTicket(
   const now = new Date().toISOString();
 
   // 更新状态
-  ticket.status = 'resolved';
+  ticket.status = 'completed';
   ticket.completionTime = now;
   ticket.completionStatus = resolutionType;
   ticket.resolvedAt = now;
@@ -595,7 +591,7 @@ export async function resolveTicket(
     operatorAvatar: currentUser.user.name.charAt(0),
     action: 'resolve',
     from: ticket.status,
-    to: 'resolved',
+    to: 'completed',
     remark: `完结类型：${resolutionType}。${remark}`,
     at: now
   });

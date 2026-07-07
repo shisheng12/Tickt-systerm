@@ -139,7 +139,7 @@ export default function Dashboard() {
               </Card>
             </Col>
             <Col xs={24} sm={12} md={8} lg={6}>
-              <Card hoverable className="metric-card" onClick={() => handleCardClick('status', 'resolved')}>
+              <Card hoverable className="metric-card" onClick={() => handleCardClick('status', 'completed')}>
                 <Statistic title="已完结数" value={stats.cards.resolved} valueStyle={{ color: '#52c41a' }} />
               </Card>
             </Col>
