@@ -25,3 +25,8 @@ dist-ssr
 
 # Claude Code
 .claude/
+
+# Lockfile omitted: generated locally against a China npm mirror, so its
+# integrity hashes don't match official npm. CI runs `npm install` to
+# resolve fresh from registry.npmjs.org. Do not commit package-lock.json.
+package-lock.json
